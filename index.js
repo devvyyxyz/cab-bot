@@ -38,15 +38,6 @@ if (!token) {
   process.exit(1);
 }
 
-if (!clientId) {
-  log.error('❌ No DISCORD_CLIENT_ID found. Copy .env.example to .env and paste your application client ID.');
-  process.exit(1);
-}
-
-if (!process.env.ROBLOX_API_KEY) {
-  log.warn('⚠️  No ROBLOX_API_KEY found. Roblox username lookups will still work but may be rate-limited.');
-}
-
 // ---------- Webhook helpers ----------
 
 async function ensureGuildAvatarWebhook(guild, avatarUrl) {
@@ -91,7 +82,6 @@ async function getGuildAvatarWebhook(guild) {
   if (!webhookId || !webhookToken) return null;
   try {
     webhook = new WebhookClient({ id: webhookId, token: webhookToken });
-
     guildWebhooks.set(guild.id, webhook);
     return webhook;
   } catch {
@@ -429,6 +419,67 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isButton()) {
       const id = interaction.customId;
+      // Handle spawn catch button clicks
+      if (id.startsWith('spawn:catch:')) {
+        const guildId = interaction.guildId;
+        const spawn = activeSpawns.get(guildId);
+        if (!spawn) {
+          await interaction.reply({ content: 'No active brainrot to catch, fr.', flags: MessageFlags.Ephemeral });
+          return;
+        }
+        // Ensure the button belongs to the active spawn message
+        if (interaction.message?.id !== spawn.messageId) {
+          await interaction.reply({ content: 'This spawn is no longer active, fr.', flags: MessageFlags.Ephemeral });
+          return;
+        }
+
+        const rot = spawn.rot;
+        const em = require('./src/emojis').emojiFor(rot.FullName);
+        const stars = data.rarityStars(rot.Rarity);
+        const rarity = helpers.rarityLabel(rot.Rarity);
+
+        try {
+          if (spawn.componentsV2) {
+            const caughtContainer = new ContainerBuilder()
+              .setAccentColor(0x22c55e)
+              .addSectionComponents(
+                new SectionBuilder()
+                  .setThumbnailAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`))
+                  .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(`${em} ${rot.FullName} was caught!`),
+                    new TextDisplayBuilder().setContent(`**${rarity} ${stars}**`),
+                    new TextDisplayBuilder().setContent(`${data.flavorFor(rot)}\n\n🎉 **Caught by ${interaction.user.username}** (${interaction.user.tag})`),
+                  ),
+              );
+            await interaction.update({ components: [caughtContainer], flags: MessageFlags.IsComponentsV2 });
+          } else {
+            const caughtEmbed = new EmbedBuilder()
+              .setTitle(`${em} ${rot.FullName} was caught!`)
+              .setDescription(`**${rarity} ${stars}**\n\n${data.flavorFor(rot)}\n\n🎉 **Caught by ${interaction.user.username}** (${interaction.user.tag})`)
+              .setThumbnail(`${data.ICON_BASE}/${rot.Icon}`)
+              .setColor(0x22c55e)
+              .setFooter({ text: `Brainrot Bot • caught by ${interaction.user.tag}` })
+              .setTimestamp();
+            await interaction.update({ embeds: [caughtEmbed], components: [] });
+          }
+        } catch (e) {
+          log.warn('Failed to update spawn message on catch:', e);
+          try { await interaction.reply({ content: 'Caught it but failed to update message, fr.', flags: MessageFlags.Ephemeral }); } catch {};
+        }
+
+        // Persist and clear
+        try {
+          db.addCatch(guildId, interaction.user.id, rot.FullName);
+        } catch (err) {
+          log.error('Failed to persist catch to DB (button):', err);
+        }
+        activeSpawns.delete(guildId);
+        try { db.clearSpawn(guildId); } catch (e) { log.warn('Failed to clear spawn in DB (button):', e); }
+
+        try { await interaction.followUp({ content: `✅ You caught ${rot.FullName}!`, flags: MessageFlags.Ephemeral }); } catch (e) { /* ignore */ }
+        log.info(`User ${interaction.user.tag} caught ${rot.FullName} in guild ${guildId} (button)`);
+        return;
+      }
       if (id.startsWith('guess:')) {
         const clickedName = id.slice('guess:'.length);
         const msg = interaction.message;
