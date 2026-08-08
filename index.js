@@ -174,10 +174,15 @@ function looksLikeUserId(s) {
 // If the input is already numeric, returns it directly.
 async function resolveRobloxUser(input) {
   if (looksLikeUserId(input)) return { userId: input };
-  const url = `https://users.roblox.com/v2/users?usernames=${encodeURIComponent(input)}&excludeBannedUsers=true`;
+  const url = "https://users.roblox.com/v2/users/username/by-username";
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": "BrainrotBot/1.0 (Discord bot)" },
+      method: "POST",
+      headers: {
+        "User-Agent": "BrainrotBot/1.0 (Discord bot)",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ usernames: [input], excludeBannedUsers: false }),
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return { error: `Roblox API returned HTTP ${res.status}` };
@@ -185,7 +190,15 @@ async function resolveRobloxUser(input) {
     if (!json.data || json.data.length === 0) {
       return { error: `No Roblox user found with username \`${input}\`.` };
     }
-    return { userId: String(json.data[0].userId) };
+    const user = json.data.find((u) => !u.userId);
+    if (user && user.error) {
+      return { error: `Roblox API error: ${user.error}` };
+    }
+    const found = json.data.find((u) => u.userId);
+    if (!found) {
+      return { error: `No Roblox user found with username \`${input}\`.` };
+    }
+    return { userId: String(found.userId) };
   } catch (err) {
     if (err.name === "TimeoutError" || err.name === "AbortError") {
       return { error: "Roblox API timed out — try again in a moment, fr." };
@@ -313,7 +326,6 @@ function buildAboutEmbed() {
           "`/settings username [name]` — set the bot's username\n" +
           "`/settings reset` — reset your personal catch inventory\n" +
           "`/settings nuke` — wipe all bot data for this server\n"
->>>>>>>
 
       },
     ])
@@ -579,7 +591,6 @@ const HELP = {
     notes:
       "Subcommands: `welcomemessage` (set/view join message), `spawnchannel` (set/view the catch-game channel), `message` (set/view the spawn announcement), `avatar` (set/view bot avatar), `username` (set/view bot username), `reset` (clear your personal catch inventory), `nuke` (wipe ALL bot data for this server). The spawn system spawns a random brainrot every minute in the configured channel — type the rot's name to catch it!",
   },
->>>>>>>
 
 };
 
@@ -1034,9 +1045,7 @@ async function spawnTick() {
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
 });
->>>>>>>
 
->>>>>>>
 
 
 client.once(Events.ClientReady, async (c) => {
@@ -1077,7 +1086,6 @@ client.once(Events.ClientReady, async (c) => {
   setInterval(spawnTick, SPAWN_INTERVAL_MS);
   log.info("   Spawn system started (1-minute interval).");
 });
->>>>>>>
 
 
 // Welcome message when the bot joins a new guild.
@@ -1169,7 +1177,6 @@ client.on(Events.MessageCreate, async (message) => {
 
   log.info(`User ${message.author.tag} caught ${rot.FullName} in guild ${guildId}`);
 });
->>>>>>>
 
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -1630,7 +1637,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.reply({ content: "Unknown settings subcommand.", ephemeral: true });
       return;
     }
->>>>>>>
 
 
     // ---------------- /start ----------------
