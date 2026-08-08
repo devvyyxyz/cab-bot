@@ -2,7 +2,7 @@
 
 const { MessageFlags } = require('discord.js');
 const { Paginator } = require('../paginator');
-const { buildInventoryPages } = require('../helpers');
+const { buildInventoryEmbeds } = require('../helpers');
 const { resolveRobloxUser, fetchInventory, cleanUserInput, looksLikeUserId } = require('../helpers');
 const { entryToTierlistEntry, runTierlistScript } = require('../helpers');
 
@@ -36,7 +36,7 @@ async function handleInventory(interaction, ctx) {
     await interaction.editReply({ content: `Player \`${userId}\` has an empty inventory, fr.` });
     return;
   }
-  const pages = buildInventoryPages(userId, inv);
+  const pages = buildInventoryEmbeds(userId, inv);
   const paginator = new Paginator({ pages, mode: 'components', userId: interaction.user.id, timeout: 120000 });
   await paginator.send(interaction);
 }
