@@ -92,44 +92,200 @@ async function resolveRobloxUser(input) {
     return { userId: cached.userId };
   }
 
-  const url = 'https://users.roblox.com/v2/users/username/by-username';
-  const robloxApiKey = process.env.ROBLOX_API_KEY;
-  try {
+  // Try a series of Roblox endpoints so the lookup is robust even if the
+  // Open Cloud API key lacks the right scopes. Each returns { userId } on
+  // success, { error } on failure, or null if the response shape was unusable.
+  async function tryV2() {
+    const url = 'https://users.roblox.com/v2/users/username/by-username';
+    const robloxApiKey = process.env.ROBLOX_API_KEY;
     const headers = {
       'User-Agent': 'BrainrotBot/1.0 (Discord bot)',
       'Content-Type': 'application/json',
     };
-    if (robloxApiKey) {
-      headers['x-api-key'] = robloxApiKey;
-    }
+    if (robloxApiKey) headers['x-api-key'] = robloxApiKey;
     const res = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ usernames: [input], excludeBannedUsers: false }),
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return { error: `Roblox API returned HTTP ${res.status}` };
-    const json = await res.json();
-    if (!json.data || json.data.length === 0) {
-      return { error: `No Roblox user found with username \`${input}\`.` };
-    }
-    const user = json.data.find((u) => !u.userId);
-    if (user && user.error) {
-      return { error: `Roblox API error: ${user.error}` };
-    }
-    const found = json.data.find((u) => u.userId);
-    if (!found) {
-      return { error: `No Roblox user found with username \`${input}\`.` };
-    }
-    const userId = String(found.userId);
-    robloxUserCache.set(input.toLowerCase(), { userId, expiresAt: Date.now() + 86400000 });
-    return { userId };
-  } catch (err) {
-    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
-      return { error: 'Roblox API timed out — try again in a moment, fr.' };
-    }
-    return { error: `network error: ${err.message}` };
+    // 401/403 => key present but wrong scopes; 404 => endpoint/name not found.
+    return { status: res.status, ok: res.ok, res };
   }
+
+  async function tryV1Public() {
+    const url = 'https://users.roblox.com/v1/usernames/users';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'User-Agent': 'BrainrotBot/1.0 (Discord bot)',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ usernames: [input], excludeBannedUsers: false }),
+      signal: AbortSignal.timeout(10000),
+    });
+    return { status: res.status, ok: res.ok, res };
+  }
+
+  // Try the singular v1 username lookup (GET) which some keys/scopes may allow.
+  async function tryV1ByUsername() {
+    const url = `https://users.roblox.com/v1/users/username?username=${encodeURIComponent(input)}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'BrainrotBot/1.0 (Discord bot)',
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    return { status: res.status, ok: res.ok, res };
+  }
+
+  async function tryLegacy() {
+    // Try the legacy API as a last resort. Use GET with query param where supported,
+    // fallback to form-POST if necessary.
+    const urlGet = `https://api.roblox.com/Users/GetByUsername?username=${encodeURIComponent(input)}`;
+    try {
+      const res = await fetch(urlGet, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'BrainrotBot/1.0 (Discord bot)',
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      return { status: res.status, ok: res.ok, res };
+    } catch (e) {
+      const url = 'https://api.roblox.com/Users/GetByUsername';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'User-Agent': 'BrainrotBot/1.0 (Discord bot)',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `username=${encodeURIComponent(input)}`,
+        signal: AbortSignal.timeout(10000),
+      });
+      return { status: res.status, ok: res.ok, res };
+    }
+  }
+
+  // Parse a successful response into a userId across all three shapes.
+  async function parseResult(tryResult) {
+    if (!tryResult.ok) return null;
+    const json = await tryResult.res.json().catch(() => null);
+    if (!json) return null;
+    // v2 / v1: data array with { userId|id, error? }
+    if (Array.isArray(json.data)) {
+      const bad = json.data.find((u) => u.error);
+      if (bad) return { error: `Roblox API error: ${bad.error}` };
+      const found = json.data.find((u) => u.userId || u.id);
+      if (found) return { userId: String(found.userId || found.id) };
+      return null;
+    }
+    // Legacy: { Id, Username }
+    if (json.Id) return { userId: String(json.Id) };
+    return null;
+  }
+
+  // Run v2 first and capture its status/result.
+  let v2;
+  try {
+    v2 = await tryV2();
+  } catch (err) {
+    v2 = { status: err.name === 'TimeoutError' || err.name === 'AbortError' ? 'timeout' : 'network', ok: false };
+  }
+  const v2Result = v2.ok ? await parseResult(v2).catch(() => null) : null;
+  if (v2Result && v2Result.userId) {
+    robloxUserCache.set(input.toLowerCase(), { userId: v2Result.userId, expiresAt: Date.now() + 86400000 });
+    return { userId: v2Result.userId };
+  }
+
+  // If v2 specifically returned 401/403, that's most likely an API key scope problem.
+  if (v2.status === 401 || v2.status === 403) {
+    return {
+      error:
+        `The Roblox API key appears to be present but missing the required \'users:read\' (Open Cloud) permission, so username lookups couldn't be performed. ` +
+        `Please provide a numeric Roblox ID instead, e.g. \`/inventory user:1559610713\`, or fix the \`ROBLOX_API_KEY\` scopes.
+`,
+    };
+  }
+
+  // If v2 returned a 404 (username not found) try some alternate endpoints before giving up.
+  try {
+    if (v2.status === 404) {
+      const byName = await tryV1ByUsername();
+      const byNameResult = byName.ok ? await parseResult(byName).catch(() => null) : null;
+      if (byNameResult && byNameResult.userId) {
+        robloxUserCache.set(input.toLowerCase(), { userId: byNameResult.userId, expiresAt: Date.now() + 86400000 });
+        return { userId: byNameResult.userId };
+      }
+      const v1 = await tryV1Public();
+      const v1Result = v1.ok ? await parseResult(v1).catch(() => null) : null;
+      if (v1Result && v1Result.userId) {
+        robloxUserCache.set(input.toLowerCase(), { userId: v1Result.userId, expiresAt: Date.now() + 86400000 });
+        return { userId: v1Result.userId };
+      }
+      const legacy = await tryLegacy();
+      const legacyResult = legacy.ok ? await parseResult(legacy).catch(() => null) : null;
+      if (legacyResult && legacyResult.userId) {
+        robloxUserCache.set(input.toLowerCase(), { userId: legacyResult.userId, expiresAt: Date.now() + 86400000 });
+        return { userId: legacyResult.userId };
+      }
+      // Nothing found: definite username miss.
+      return { error: `No Roblox user found with username \`${input}\`. Double-check the spelling, or provide a numeric Roblox ID (e.g. \`/inventory user:1559610713\`).` };
+    }
+
+    // v2 timed out or network error: still try public/legacy endpoints as they may work.
+    if (v2.status === 'network' || v2.status === 'timeout') {
+      const v1 = await tryV1Public();
+      const v1Result = v1.ok ? await parseResult(v1).catch(() => null) : null;
+      if (v1Result && v1Result.userId) {
+        robloxUserCache.set(input.toLowerCase(), { userId: v1Result.userId, expiresAt: Date.now() + 86400000 });
+        return { userId: v1Result.userId };
+      }
+      const legacy = await tryLegacy();
+      const legacyResult = legacy.ok ? await parseResult(legacy).catch(() => null) : null;
+      if (legacyResult && legacyResult.userId) {
+        robloxUserCache.set(input.toLowerCase(), { userId: legacyResult.userId, expiresAt: Date.now() + 86400000 });
+        return { userId: legacyResult.userId };
+      }
+      return { error: `Couldn't reach the Roblox API to confirm username \`${input}\` (network or timeout). Provide a numeric Roblox ID instead, e.g. \`/inventory user:1559610713\`.` };
+    }
+
+    // For any other non-OK v2 response, try the public v1 and legacy endpoints as a fallback.
+    const v1 = await tryV1Public();
+    const v1Result = v1.ok ? await parseResult(v1).catch(() => null) : null;
+    if (v1Result && v1Result.userId) {
+      robloxUserCache.set(input.toLowerCase(), { userId: v1Result.userId, expiresAt: Date.now() + 86400000 });
+      return { userId: v1Result.userId };
+    }
+    const legacy = await tryLegacy();
+    const legacyResult = legacy.ok ? await parseResult(legacy).catch(() => null) : null;
+    if (legacyResult && legacyResult.userId) {
+      robloxUserCache.set(input.toLowerCase(), { userId: legacyResult.userId, expiresAt: Date.now() + 86400000 });
+      return { userId: legacyResult.userId };
+    }
+  } catch (e) {
+    // ignore and fall through to friendly message below
+  }
+
+  // Build a distinct, helpful message based on what we saw.
+  const keyIssue = v2.status === 403 || v2.status === 401;
+  if (keyIssue) {
+    return {
+      error:
+        `The Roblox API key is missing the \`users:read\` (Open Cloud) permission, so username lookups couldn't be performed. ` +
+        `Please provide a numeric Roblox ID instead, e.g. \`/inventory user:1559610713\`, or fix the \`ROBLOX_API_KEY\` scopes.`,
+    };
+  }
+  if (v2.status === 404 || v2.status === 'network' || v2.status === 'timeout') {
+    return {
+      error:
+        `Couldn't confirm the username \`${input}\` (Roblox API returned HTTP ${v2.status === 'network' ? 'network error' : v2.status === 'timeout' ? 'timeout' : v2.status}). ` +
+        `Double-check the username, or provide a numeric Roblox ID instead, e.g. \`/inventory user:1559610713\`.`,
+    };
+  }
+  return { error: `No Roblox user found with username \`${input}\`.` };
 }
 
 async function fetchInventory(userId) {

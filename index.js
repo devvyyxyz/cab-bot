@@ -105,6 +105,29 @@ function checkExpiredSpawns() {
       db.clearSpawn(guildId);
       activeSpawns.delete(guildId);
       log.debug(`Spawn expired in guild ${guildId} (rot: ${spawn.rot?.FullName})`);
+
+      // Edit the spawn embed to show it expired, then delete it shortly after.
+      if (spawn.messageId && spawn.channelId) {
+        const guild = client.guilds.cache.get(guildId);
+        const channel = guild?.channels.cache.get(spawn.channelId);
+        if (channel && channel.viewable) {
+          channel.messages
+            .fetch(spawn.messageId)
+            .then(async (msg) => {
+              const em = spawn.rot ? require('./src/emojis').emojiFor(spawn.rot.FullName) : '';
+              const expired = new EmbedBuilder()
+                .setTitle(`${em} ${spawn.rot?.FullName || 'A brainrot'} got away!`)
+                .setDescription(`**⏰ Expired.** Nobody caught it in time, fr. A new one will spawn soon.`)
+                .setColor(0x6b7280)
+                .setFooter({ text: 'Brainrot Bot • expired' })
+                .setTimestamp();
+              await msg.edit({ embeds: [expired] }).catch(() => {});
+              // Auto-delete shortly after so the channel doesn't clutter.
+              setTimeout(() => msg.delete().catch(() => {}), 10000);
+            })
+            .catch(() => {});
+        }
+      }
     }
   }
 }
