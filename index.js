@@ -165,6 +165,8 @@ function createContext() {
     COOLDOWNS: data.COOLDOWNS,
     ensureGuildAvatarWebhook,
     getGuildAvatarWebhook,
+    spawnRotForGuild,
+    SPAWN_DURATION_MS,
   };
 }
 

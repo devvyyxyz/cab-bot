@@ -1,7 +1,7 @@
 // src/commands.js
 // Slash command definitions for discord.js v14 REST registration.
 
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 
 const commands = [
   // ---------------------------------------------------------------- /info
@@ -158,7 +158,8 @@ const commands = [
           { name: "daily", value: "daily" },
           { name: "guess", value: "guess" },
           { name: "tierlist", value: "tierlist" },
-          { name: "settings", value: "settings" }
+          { name: "settings", value: "settings" },
+          { name: "forcespawn", value: "forcespawn" }
         )
     ),
 
@@ -250,6 +251,12 @@ const commands = [
           { name: "pc", value: "pc" }
         )
     ),
+
+  // ---------------------------------------------------------------- /forcespawn
+  new SlashCommandBuilder()
+    .setName("forcespawn")
+    .setDescription("Force a brainrot to spawn now in this server (Manage Channels required).")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 ].map((cmd) => cmd.toJSON());
 
 module.exports = commands;

@@ -109,6 +109,12 @@ const HELP = {
     examples: ['/settings welcomemessage', '/settings spawnchannel channel:#spawns', '/settings message message:A brainrot appeared!', '/settings avatar image:https://example.com/avatar.png', '/settings username name:Brainrot Bot', '/settings reset', '/settings nuke'],
     notes: 'Subcommands: welcomemessage, spawnchannel, message, avatar, username, reset, nuke.',
   },
+  forcespawn: {
+    summary: 'Force a brainrot to spawn now in this server (requires Manage Channels).',
+    usage: '/forcespawn',
+    examples: ['/forcespawn'],
+    notes: 'Requires the Manage Channels permission. Spawns a random brainrot immediately in the configured spawn channel.',
+  },
   ping: {
     summary: 'Check bot latency and API ping.',
     usage: '/ping',
@@ -134,7 +140,8 @@ function buildHelpOverviewEmbed() {
       { name: '/start', value: HELP.start.summary, inline: false },
       { name: '/settings', value: HELP.settings.summary, inline: false },
       { name: '/help', value: HELP.help.summary, inline: false },
-      { name: '/ping', value: HELP.ping.summary, inline: false }
+      { name: '/ping', value: HELP.ping.summary, inline: false },
+      { name: '/forcespawn', value: HELP.forcespawn.summary, inline: false }
     )
     .setFooter({ text: 'Use /help command:<name> for detailed help on any command.' })
     .setTimestamp();

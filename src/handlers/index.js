@@ -10,4 +10,5 @@ module.exports = {
   guess: require('./game').handleGuess,
   help: require('./help'),
   settings: require('./settings'),
+  forcespawn: require('./spawn'),
 };
