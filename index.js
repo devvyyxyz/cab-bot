@@ -116,16 +116,31 @@ function checkExpiredSpawns() {
           channel.messages
             .fetch(spawn.messageId)
             .then(async (msg) => {
-              const em = spawn.rot ? require('./src/emojis').emojiFor(spawn.rot.FullName) : '';
-              const thumb = spawn.rot ? `${data.ICON_BASE}/${spawn.rot.Icon}` : '';
-              const expired = new EmbedBuilder()
-                .setTitle(`${em} ${spawn.rot?.FullName || 'A brainrot'} got away!`)
-                .setDescription(`**⏰ Expired.** Nobody caught it in time, fr. A new one will spawn soon.`)
-                .setThumbnail(thumb)
-                .setColor(0x6b7280)
-                .setFooter({ text: 'Brainrot Bot • expired' })
-                .setTimestamp();
-              await msg.edit({ embeds: [expired], components: [] }).catch(() => {});
+                const em = spawn.rot ? require('./src/emojis').emojiFor(spawn.rot.FullName) : '';
+                const thumb = spawn.rot ? `${data.ICON_BASE}/${spawn.rot.Icon}` : '';
+                if (spawn.componentsV2) {
+                  const expiredContainer = new ContainerBuilder()
+                    .setAccentColor(0x6b7280)
+                    .addSectionComponents(
+                      new SectionBuilder()
+                        .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumb))
+                        .addTextDisplayComponents(
+                          new TextDisplayBuilder().setContent(`${em} ${spawn.rot?.FullName || 'A brainrot'} got away!`),
+                          new TextDisplayBuilder().setContent('**⏰ Expired.** Nobody caught it in time, fr. A new one will spawn soon.'),
+                        ),
+                    )
+                    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+                  await msg.edit({ components: [expiredContainer] }).catch(() => {});
+                } else {
+                  const expired = new EmbedBuilder()
+                    .setTitle(`${em} ${spawn.rot?.FullName || 'A brainrot'} got away!`)
+                    .setDescription(`**⏰ Expired.** Nobody caught it in time, fr. A new one will spawn soon.`)
+                    .setThumbnail(thumb)
+                    .setColor(0x6b7280)
+                    .setFooter({ text: 'Brainrot Bot • expired' })
+                    .setTimestamp();
+                  await msg.edit({ embeds: [expired], components: [] }).catch(() => {});
+                }
               // Auto-delete shortly after so the channel doesn't clutter.
               setTimeout(() => msg.delete().catch(() => {}), 10000);
             })
@@ -161,9 +176,20 @@ async function spawnRotForGuild(guild) {
         new TextDisplayBuilder().setContent(rarityLine),
         new TextDisplayBuilder().setContent(flavorLine),
       );
+  const container = new ContainerBuilder()
+    .setAccentColor(0x22c55e)
+    .addSectionComponents(
+      section(`${data.ICON_BASE}/${rot.Icon}`, `${em} ${rot.FullName} appeared!`, `**${rarity} ${stars}**`, flavor),
+    )
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
+    .addSectionComponents(
+      new SectionBuilder()
+        .setButtonAccessory(new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel('catch').setCustomId(`spawn:catch:${guild.id}:${Math.floor(expiresAt/1000)}`))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent("Type the brainrot's name to catch it!")),
+    );
 
-  // Also send a classic embed + action row as a reliable fallback so the
-  // spawn always appears even if Components V2 isn't available in the guild.
+  // Also prepare a classic embed + action row fallback so the spawn always
+  // appears even if Components V2 isn't available in the guild.
   const spawnEmbed = new EmbedBuilder()
     .setTitle(`${em} ${rot.FullName} appeared!`)
     .setDescription(`**${rarity} ${stars}**\n\n${flavor}\n\nType the brainrot's name to catch it!`)
@@ -180,10 +206,24 @@ async function spawnRotForGuild(guild) {
       .setStyle(ButtonStyle.Success)
   );
 
-  const msg = await channel.send({ embeds: [spawnEmbed], components: [row] }).catch(() => null);
+  // Prefer Components V2 if available in the runtime (MessageFlags.IsComponentsV2).
+  let msg = null;
+  let usedV2 = false;
+  if (MessageFlags && MessageFlags.IsComponentsV2) {
+    try {
+      msg = await channel.send({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      usedV2 = true;
+    } catch (e) {
+      // fall back to embed
+    }
+  }
+  if (!msg) {
+    msg = await channel.send({ embeds: [spawnEmbed], components: [row] }).catch(() => null);
+    usedV2 = false;
+  }
   if (!msg) return;
 
-  activeSpawns.set(guild.id, { rot, expiresAt, messageId: msg.id, channelId });
+  activeSpawns.set(guild.id, { rot, expiresAt, messageId: msg.id, channelId, componentsV2: usedV2 });
   db.setActiveSpawn(guild.id, rot.FullName, Math.floor(expiresAt / 1000));
 }
 
@@ -223,6 +263,9 @@ function createContext() {
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
 });
+
+// Discord.js v15 includes native Components V2 support; ensure you upgrade
+// the `discord.js` dependency and run `npm install` to enable it.
 
 client.once(Events.ClientReady, async (c) => {
   log.info(`✅ Brainrot Bot online — logged in as ${c.user.tag}`);
@@ -315,7 +358,22 @@ client.on(Events.MessageCreate, async (message) => {
   if (spawn.messageId) {
     try {
       const spawnMsg = await message.channel.messages.fetch(spawn.messageId);
-      await spawnMsg.edit({ embeds: [caughtEmbed], components: [] }).catch(() => {});
+      if (spawn.componentsV2) {
+        const caughtContainer = new ContainerBuilder()
+          .setAccentColor(0x22c55e)
+          .addSectionComponents(
+            new SectionBuilder()
+              .setThumbnailAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`))
+              .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(`${em} ${rot.FullName} was caught!`),
+                new TextDisplayBuilder().setContent(`**${rarity} ${stars}**`),
+                new TextDisplayBuilder().setContent(`${data.flavorFor(rot)}\n\n🎉 **Caught by ${message.author.username}** (${message.author.tag})`),
+              ),
+          );
+        await spawnMsg.edit({ components: [caughtContainer] }).catch(() => {});
+      } else {
+        await spawnMsg.edit({ embeds: [caughtEmbed], components: [] }).catch(() => {});
+      }
     } catch {
       // Message may already be deleted; ignore.
     }

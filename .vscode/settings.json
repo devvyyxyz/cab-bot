@@ -1,0 +1,9 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "npm install": true,
+        "/^yarn --version$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
