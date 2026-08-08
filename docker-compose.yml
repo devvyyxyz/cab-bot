@@ -1,12 +1,17 @@
 services:
   brainrot-bot:
     build: .
-    env_file: .env
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
     ports:
       - "3000:3000"
     volumes:
       - data:/app/data
       - tierlists:/app/tierlists
+      - ./.env.development:/app/.env.development:ro
+      - ./.env.production:/app/.env.production:ro
     restart: unless-stopped
 
 volumes:

@@ -14,7 +14,9 @@
 //      bulk PUT — Discord forbids removing those via bulk update.
 //   4. PUT our commands + preserved system commands.
 
-require("dotenv").config();
+require("dotenv").config({ path: ".env" });
+const env = process.env.NODE_ENV || "development";
+require("dotenv").config({ path: `.env.${env}`, override: true });
 const { REST, Routes } = require("discord.js");
 const commands = require("./src/commands");
 

@@ -17,7 +17,9 @@
 //   /guess                               → mini-game: identify a brainrot from its icon
 //   /tierlist user:<id> [source]         → generate a tier-list image from a live inventory
 
-require("dotenv").config();
+require("dotenv").config({ path: ".env" });
+const env = process.env.NODE_ENV || "development";
+require("dotenv").config({ path: `.env.${env}`, override: true });
 
 const {
   Client,

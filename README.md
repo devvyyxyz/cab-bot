@@ -92,8 +92,16 @@ When a guild has a spawn channel configured via `/settings spawnchannel`, a rand
 ```bash
 cd brainrot-bot
 npm install
+
+# Copy the shared config template:
 cp .env.example .env
-# Edit .env and paste your DISCORD_TOKEN + DISCORD_CLIENT_ID
+
+# Copy the environment-specific bot credentials:
+cp .env.development.example .env.development   # for dev bot
+cp .env.production.example .env.production     # for public/prod bot
+
+# Edit .env and set NODE_ENV (development or production).
+# Edit the matching .env.{environment} file with your DISCORD_TOKEN + DISCORD_CLIENT_ID.
 ```
 
 ### 3. Register slash commands (one-time, or whenever you change commands)
@@ -128,7 +136,9 @@ brainrot-bot/
 ├── index.js                # Main bot — login, event handlers, command logic
 ├── deploy-commands.js      # One-shot script to register slash commands
 ├── package.json
-├── .env.example            # Copy to .env and fill in your token + app ID
+├── .env.example            # Copy to .env — shared config + NODE_ENV
+├── .env.development.example  # Copy to .env.development — dev bot credentials
+├── .env.production.example   # Copy to .env.production — public/prod bot credentials
 ├── .eslintrc.json        # ESLint config
 ├── Dockerfile              # Container image for easy deployment
 ├── README.md               # This file
@@ -223,18 +233,23 @@ Set the `PORT` (or `HEALTH_CHECK_PORT`) environment variable to enable a lightwe
 
 ### Quick Start (Docker Compose)
 
-1. Copy `.env.example` to `.env` and fill in your bot token + client ID.
-2. Run `docker compose up -d --build` to build and start the bot.
-3. Check logs with `docker compose logs -f`.
+1. Copy `.env.example` → `.env` and set `NODE_ENV` to `development` or `production`.
+2. Copy the matching credentials file:
+   - `cp .env.development.example .env.development` (for dev bot)
+   - `cp .env.production.example .env.production` (for public bot)
+3. Edit the `.env.{environment}` file with your bot token + client ID.
+4. Run `docker compose up -d --build` to build and start the bot.
+5. Check logs with `docker compose logs -f`.
 
-The bot's SQLite database (`/app/data/brainrot.db`) and tier-list images (`/app/tierlists`) are stored in named Docker volumes, so your data persists across container restarts and updates.
+The Docker Compose file mounts both `.env.development` and `.env.production` as read-only volumes and uses `NODE_ENV` (from your `.env`) to select which credentials the bot loads at runtime. The bot's SQLite database (`/app/data/brainrot.db`) and tier-list images (`/app/tierlists`) are stored in named Docker volumes, so your data persists across container restarts and updates.
 
 ### Environment Variables
 
 | Variable | Required | Description |
 | -------- | -------- | ----------- |
-| `DISCORD_TOKEN` | ✅ | Your bot's Discord token |
-| `DISCORD_CLIENT_ID` | ✅ | Your application's client ID |
+| `DISCORD_TOKEN` | ✅ | Your bot's Discord token (in `.env.{environment}`) |
+| `DISCORD_CLIENT_ID` | ✅ | Your application's client ID (in `.env.{environment}`) |
+| `NODE_ENV` | ✅ | `development` or `production` — selects which `.env.{environment}` file to load |
 | `PORT` | ❌ | Port for the HTTP health-check endpoint (default: none) |
 | `HEALTH_CHECK_PORT` | ❌ | Alternative to `PORT` |
 | `LOG_LEVEL` | ❌ | Log verbosity: `info` (default), `debug`, `warn`, `error` |
@@ -242,17 +257,20 @@ The bot's SQLite database (`/app/data/brainrot.db`) and tier-list images (`/app/
 
 ### Manual Docker Build
 
-If you prefer not to use Compose:
-
 ```bash
 docker build -t brainrot-bot .
+
+# Set NODE_ENV in your .env to production or development,
+# then mount the appropriate env files:
 docker run -d \
   --name brainrot-bot \
   --restart unless-stopped \
   -p 3000:3000 \
   --env-file .env \
-  -v brainrot_data:/app/data \
-  -v brainrot_tierlists:/app/tierlists \
+  -v ./data:/app/data \
+  -v ./tierlists:/app/tierlists \
+  -v ./.env.development:/app/.env.development:ro \
+  -v ./.env.production:/app/.env.production:ro \
   brainrot-bot
 ```
 
