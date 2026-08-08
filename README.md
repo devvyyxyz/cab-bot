@@ -113,8 +113,14 @@ npm run deploy
 ### 4. Start the bot
 
 ```bash
+# Development (auto-restarts on file changes, uses dev bot credentials):
+npm run dev
+
+# Production (uses production bot credentials):
 npm start
 ```
+
+When you change commands or fix bugs, `npm run dev` picks up the changes automatically. Use `npm start` for your live public bot.
 
 You should see:
 
