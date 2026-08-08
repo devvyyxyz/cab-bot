@@ -32,7 +32,8 @@ const {
   TextDisplayBuilder,
   MediaGalleryBuilder,
   MediaGalleryItemBuilder,
-  SeparatorBuilder,
+    SeparatorBuilder,
+  MessageFlags,
   Events,
 } = require("discord.js");
 const { execFile } = require("child_process");
@@ -1257,7 +1258,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!answerRot) {
           await interaction.reply({
             content: "Lost track of the answer, fr. Run `/guess` again for a fresh round.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           return;
         }
@@ -1296,7 +1297,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const remaining = Math.ceil((cooldown - (Date.now() - last)) / 1000);
         await interaction.reply({
           content: `Chill out, bro — \`${interaction.commandName}\` is on cooldown for ${remaining}s, fr.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1315,7 +1316,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!rot) {
           await interaction.reply({
             content: `Couldn't find a brainrot matching \`${query}\`, bro. Try again or just run \`/info type:rot\` for a random one fr.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           return;
         }
@@ -1330,7 +1331,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!skin) {
           await interaction.reply({
             content: `Couldn't find a hoverboard matching \`${query}\`, fr. Try the autocomplete.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           return;
         }
@@ -1345,7 +1346,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!item) {
           await interaction.reply({
             content: `Couldn't find an item matching \`${query}\`, fr. Try the autocomplete.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           return;
         }
@@ -1360,7 +1361,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await interaction.reply({
         content: "Unknown info type, fr. Pick rot / hoverboard / item / about.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -1372,7 +1373,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!userId) {
         await interaction.reply({
           content: "Give me a user ID or username, bro. `/inventory user:1559610713` or `/inventory user:YourUsername` for example.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1421,7 +1422,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!detail) {
         await interaction.reply({
           content: `No help available for \`${cmd}\`, fr. Try one of: info, inventory, trade, start, help.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1435,7 +1436,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (sub !== "calculate") {
         await interaction.reply({
           content: "Unknown trade subcommand. Use `/trade calculate`.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1451,21 +1452,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!rotA) {
         await interaction.reply({
           content: `Couldn't find side A brainrot \`${aName}\`. Use the autocomplete to pick a real one, fr.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
       if (!rotB) {
         await interaction.reply({
           content: `Couldn't find side B brainrot \`${bName}\`. Use the autocomplete to pick a real one, fr.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
       if (rotA.FullName === rotB.FullName) {
         await interaction.reply({
           content: "Trading the same brainrot for itself? Bro, that's not a trade fr. Pick two different ones.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1486,13 +1487,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
           welcomeMessages.set(guildId, msg);
           await interaction.reply({
             content: `✅ Welcome message set for this server, fr. New message:\n> ${msg}`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         } else {
           const current = welcomeMessages.get(guildId) || "(default welcome message)";
           await interaction.reply({
             content: `Current welcome message for this server:\n> ${current}\n\nTo change it, use \`/settings welcomemessage message:<your message>\`.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
         return;
@@ -1504,19 +1505,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
           db.setGuildSetting(guildId, "spawn_channel", channel.id);
           await interaction.reply({
             content: `✅ Spawn channel set to <#${channel.id}>, fr. Brainrots will now spawn there every minute.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         } else {
           const current = db.getGuildSetting(guildId, "spawn_channel");
           if (current) {
             await interaction.reply({
               content: `Current spawn channel: <#${current}>. To change it, use \`/settings spawnchannel channel:<channel>\`.`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           } else {
             await interaction.reply({
               content: "No spawn channel set yet. Use `/settings spawnchannel channel:<channel>` to set one.",
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           }
         }
@@ -1529,13 +1530,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
           db.setGuildSetting(guildId, "spawn_message", msg);
           await interaction.reply({
             content: `✅ Spawn message set for this server, fr. New message:\n> ${msg}`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         } else {
           const current = db.getGuildSetting(guildId, "spawn_message") || "(default spawn message)";
           await interaction.reply({
             content: `Current spawn message for this server:\n> ${current}\n\nTo change it, use \`/settings message message:<your message>\`.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
         return;
@@ -1559,12 +1560,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
             db.setGuildSetting(guildId, "avatar", avatarUrl);
             await interaction.reply({
               content: `✅ Bot avatar updated, fr.`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           } catch (err) {
             await interaction.reply({
               content: `❌ Couldn't set avatar: ${err.message}. Make sure the URL is a valid image.`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           }
         } else {
@@ -1572,12 +1573,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
           if (current) {
             await interaction.reply({
               content: `Current bot avatar URL:\n> ${current}\n\nTo change it, use \`/settings avatar image:<url>\`.`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           } else {
             await interaction.reply({
               content: "No custom avatar set. Use `/settings avatar image:<url>` to set one.",
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           }
         }
@@ -1592,19 +1593,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
             db.setGuildSetting(guildId, "username", name);
             await interaction.reply({
               content: `✅ Bot username set to \`${name}\`, fr.`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           } catch (err) {
             await interaction.reply({
               content: `❌ Couldn't set username: ${err.message}. Discord limits username changes.`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           }
         } else {
           const current = db.getGuildSetting(guildId, "username") || client.user.username;
           await interaction.reply({
             content: `Current bot username: \`${current}\`\n\nTo change it, use \`/settings username name:<name>\`.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
         return;
@@ -1615,7 +1616,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         db.clearUserInventory(guildId, userId);
         await interaction.reply({
           content: `✅ Your catch inventory has been reset for this server, fr. All caught brainrots are gone.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1629,12 +1630,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         activeSpawns.delete(guildId);
         await interaction.reply({
           content: `💥 **NUKED.** All bot data for this server has been wiped — spawns, inventory, settings, everything. The bot will need to be reconfigured with \`/settings\` commands.`,
-          ephemeral: false,
         });
         return;
       }
 
-      await interaction.reply({ content: "Unknown settings subcommand.", ephemeral: true });
+      await interaction.reply({ content: "Unknown settings subcommand.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1662,7 +1662,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           content:
             "Give me both `world` and `zone`, bro — or leave both blank for a random spawn. " +
             "Like `/spawn world:2 zone:3`.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1672,7 +1672,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!list || list.length === 0) {
         await interaction.reply({
           content: `No brainrots spawn at W${world}.Z${zone}, fr. Valid zones: ${spawnKeys.join(", ")}.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1747,7 +1747,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!userId) {
         await interaction.reply({
           content: "Give me a user ID or username, bro. `/tierlist user:1559610713` or `/tierlist user:YourUsername` for example.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -1818,7 +1818,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     log.error("Interaction error:", err);
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
       await interaction
-        .reply({ content: "Something cooked itself, try again fr. 🗿", ephemeral: true })
+        .reply({ content: "Something cooked itself, try again fr. 🗿", flags: MessageFlags.Ephemeral })
         .catch(() => {});
     } else if (interaction.isRepliable() && interaction.deferred) {
       await interaction

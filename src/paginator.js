@@ -135,7 +135,7 @@ class Paginator {
       if (this.userId && i.user.id !== this.userId) {
         await i.reply({
           content: "Not your paginator, fr. Run the command yourself.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
