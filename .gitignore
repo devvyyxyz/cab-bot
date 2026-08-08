@@ -1,7 +1,28 @@
+# Dependencies
 node_modules/
+
+# Environment files — secrets must never be committed
 .env
+.env.local
 .env.development
 .env.production
-*.log
-.DS_Store
+.env.*.local
+
+# Python (for src/tierlist.py / Pillow)
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated output
 tierlists/
+data/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+
