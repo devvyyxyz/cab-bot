@@ -1,7 +1,9 @@
 module.exports = {
   ping: require('./ping'),
   info: require('./info'),
-  inventory: require('./inventory').handleInventory,
+  // Standalone /inventory shows DB-caught brainrots using Components V2
+  inventory: require('./inventory_local'),
+  // tierlist still uses the live inventory handler
   tierlist: require('./inventory').handleTierlist,
   trade: require('./trade'),
   start: require('./game').handleStart,

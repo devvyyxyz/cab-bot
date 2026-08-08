@@ -131,6 +131,17 @@ const commands = [
 
   // Note: Inventory is now available via `/info type:inventory user:<id|username>`
 
+  // ---------------------------------------------------------------- /inventory (DB-caught rots)
+  new SlashCommandBuilder()
+    .setName("inventory")
+    .setDescription("Show caught brainrots for a user (server-scoped).")
+    .addUserOption((opt) =>
+      opt
+        .setName('user')
+        .setDescription('Discord user to view (omit for yourself).')
+        .setRequired(false)
+    ),
+
   // ---------------------------------------------------------------- /ping
   new SlashCommandBuilder()
     .setName("ping")

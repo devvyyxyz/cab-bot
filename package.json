@@ -8,6 +8,9 @@
     "start": "NODE_ENV=production node index.js",
     "dev": "NODE_ENV=development node --watch index.js",
     "deploy": "node deploy-commands.js",
+    "db:migrate": "node scripts/db-migrate.js",
+    "db:vacuum": "node scripts/db-vacuum.js",
+    "db:backup": "node scripts/db-backup.js",
     "check": "node -c index.js && node -c deploy-commands.js && for f in src/*.js; do node -c \"$f\"; done && echo OK",
     "lint": "eslint index.js deploy-commands.js src/*.js"
   },

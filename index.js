@@ -18,6 +18,7 @@ const data = require('./src/data');
 const helpers = require('./src/helpers');
 const embeds = require('./src/embeds');
 const handlers = require('./src/handlers');
+const defaults = require('./src/defaults');
 
 // ---------- Constants ----------
 
@@ -285,6 +286,23 @@ client.once(Events.ClientReady, async (c) => {
     log.error('   ❌ Database init failed:', err);
   }
 
+  // Ensure default settings exist for all guilds we're in, and populate welcomeMessages cache.
+  try {
+    for (const guild of c.guilds.cache.values()) {
+      // Apply defaults where missing
+      for (const [k, v] of Object.entries(defaults)) {
+        const cur = db.getGuildSetting(guild.id, k);
+        if (cur === null || cur === undefined) {
+          db.setGuildSetting(guild.id, k, v);
+        }
+      }
+      const wm = db.getGuildSetting(guild.id, 'welcome_message') || defaults.welcome_message;
+      welcomeMessages.set(guild.id, wm);
+    }
+  } catch (err) {
+    log.warn('Failed to apply default guild settings:', err);
+  }
+
   const healthPort = process.env.PORT || process.env.HEALTH_CHECK_PORT;
   if (healthPort) {
     helpers.startHealthCheckServer(parseInt(healthPort, 10), log);
@@ -296,8 +314,14 @@ client.once(Events.ClientReady, async (c) => {
 
 client.on(Events.GuildCreate, async (guild) => {
   log.info(`Joined new guild: ${guild.name} (${guild.id})`);
-  const welcomeMsg = welcomeMessages.get(guild.id) ||
-    'Hey! I\'m Brainrot Bot — like cat bot, but for Italian brainrot characters. Try `/info type:rot` or `/help` to get started, fr. 🗿';
+  // Ensure default settings are created for this guild
+  try {
+    for (const [k, v] of Object.entries(defaults)) {
+      const cur = db.getGuildSetting(guild.id, k);
+      if (cur === null || cur === undefined) db.setGuildSetting(guild.id, k, v);
+    }
+  } catch (err) { log.warn('Failed to set defaults for new guild:', err); }
+  const welcomeMsg = welcomeMessages.get(guild.id) || db.getGuildSetting(guild.id, 'welcome_message') || defaults.welcome_message;
   const systemChannel = guild.systemChannel;
   if (systemChannel && systemChannel.viewable) {
     await systemChannel.send(welcomeMsg).catch(() => {});
