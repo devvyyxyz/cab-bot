@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node index.js",
     "deploy": "node deploy-commands.js",
-    "check": "node -c index.js && node -c deploy-commands.js && node -c src/commands.js && node -c src/slang.js && node -c src/paginator.js && node -c src/emojis.js && node -c src/logger.js && echo OK",
+    "check": "node -c index.js && node -c deploy-commands.js && for f in src/*.js; do node -c \"$f\"; done && echo OK",
     "lint": "eslint index.js deploy-commands.js src/*.js"
   },
   "dependencies": {

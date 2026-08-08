@@ -1,6 +1,6 @@
 # 🗿 Brainrot Bot
 
-A Discord bot like "cat bot", but for **Italian brainrot characters** — Brr Brrr Patapim, Ballerina Cappuccina, Bobrito Bandito, and 87 more. Built with Node.js + discord.js v14, slash commands only, no database.
+A Discord bot like "cat bot", but for **Italian brainrot characters** — Brr Brrr Patapim, Ballerina Cappuccina, Bobrito Bandito, and 87 more. Built with Node.js + discord.js v14, slash commands only, with a SQLite database for persistent settings and the catch game.
 
 Rot/bag/skin info comes from a baked JSON snapshot pulled from [`indieun.com/cab`](https://indieun.com/cab). Inventory lookups are fetched **live** at query time from `indieun.com/cab/inventory/<id>`.
 
@@ -8,32 +8,69 @@ Rot/bag/skin info comes from a baked JSON snapshot pulled from [`indieun.com/cab
 
 ## What it does
 
-All info queries are condensed into a single `/info` command with a `type` choice:
+All info queries are condensed into a single `/info` command with a `type` choice. The bot also supports a trading calculator, spawn-location lookup, tier-list generation, a guessing mini-game, and a server-wide catch game with a database-backed inventory.
 
 | Command                       | What you get                                              |
 | ----------------------------- | -------------------------------------------------------- |
-| `/info type:rot`              | A random brainrot character — icon, stats, slang flavor  |
-| `/info type:rot name:<x>`     | Look up a specific brainrot by name (autocomplete helps) |
-| `/info type:hoverboard`       | A random hoverboard skin                                 |
-| `/info type:hoverboard name:<x>` | A specific hoverboard skin (autocomplete helps)       |
-| `/info type:item`             | A random item from the bag (boxes, eggs, currency…)      |
-| `/info type:item name:<x>`    | A specific bag item (autocomplete helps)                 |
-| `/info type:about`            | Bot info + command list                                  |
+| `/info type:rot [random]`     | Look up a specific brainrot or show a random one         |
+| `/info type:hoverboard [random]` | Look up a specific hoverboard skin or show a random one |
+| `/info type:item [random]`    | Look up a specific bag item or show a random one          |
+| `/info type:about`            | Bot info + full command list                              |
 | `/inventory user:<id>`        | Live player inventory — team, hoverboards, PC, bag       |
-| `/settings welcomemessage`  | Configure the server welcome message                     |
+| `/trade calculate a:<rot> b:<rot>` | Trade fairness calculator with IV/level support     |
+| `/spawn [world] [zone]`       | Brainrots that spawn at a location, or a random spawn    |
+| `/top by:<stat> [count]`      | Top N brainrots by rarity/attack/health/speed            |
+| `/daily`                      | Brainrot of the day (same for everyone, changes at UTC midnight) |
+| `/guess`                      | Mini-game: identify a brainrot from its icon             |
+| `/tierlist user:<id> [source]` | Generate a tier-list PNG image from a player's inventory |
+| `/start`                      | Get a button to launch the Brainrot Bot activity         |
+| `/settings <subcommand>`      | Configure welcome messages, spawn channel, avatar, etc. |
+| `/help [command:<name>]`      | Show all commands or detailed help for a specific one    |
 
 The bot speaks mostly-normal English with brainrot slang sprinkled in ("fr", "ngl", "sigma", "goated", etc.). Each response is randomized so repeats feel fresh.
 
-### `/inventory` details
+### `/info`
 
-Takes a **Roblox user ID** (numeric, e.g. `1559610713`) or a **username** (e.g. `YourUsername`). The bot resolves usernames via the Roblox API. Usernames are — indieun.com/cab keys inventories by Roblox UID. The reply is a paginated Components V2 response with four sections:
+Use `type` to pick a category (rot, hoverboard, item, or about), and optionally a `name` to look up a specific entry (autocomplete helps). Add `random:true` for an explicit random pick, or just omit the name.
 
-- **Team (N/6)** — current active team with level, nickname, IV%, box, and moveset
+### `/inventory`
+
+Takes a **Roblox user ID** (numeric, e.g. `1559610713`) or a **username** (e.g. `YourUsername`). The bot resolves usernames via the Roblox API and fetches the player's live inventory. The reply is a paginated Components V2 response with four sections:
+
+- **Team (N/6)** — current active team with level, nickname, IV%, moveset, and clickable icons
 - **Hoverboards (N)** — all owned hoverboards with their speed stat
-- **PC (N)** — PC count, highest-IV highlight, and a 3-entry preview
-- **Bag (N types, N total)** — every bag item with its quantity, sorted by count
+- **PC (N)** — paginated pages of 8 entries, sorted by IV%, with highest-IV highlight
+- **Bag (N types, N total)** — top item icons + full count list in a code block
 
 If the user doesn't exist or has no brainrot progress, the bot replies with a clear error message.
+
+### `/trade calculate`
+
+Compare two brainrots for trade fairness. Optionally specify `a_iv`, `a_level`, `b_iv`, `b_level` (IV 0–100, level 1–100). The bot computes a value score from rarity, IV, level, exclusivity, and base stats, then gives a verdict: ✅ fair / ⚠️ slightly one-sided / ❌ one-sided / 🚫 rip-off.
+
+### `/spawn`
+
+Show brainrots that spawn at a given world/zone (e.g. `/spawn world:2 zone:3`), or omit both arguments for a random spawn location. Note: 32 of 90 brainrots have no fixed spawn (mostly exclusives).
+
+### `/top`
+
+Show the top N brainrots by rarity, attack, health, or speed. Results are paginated (10 per page) when count exceeds 10.
+
+### `/daily`
+
+A deterministic brainrot of the day based on the UTC date — same for everyone in every server. Changes at 00:00 UTC.
+
+### `/guess`
+
+A mini-game: the bot posts a mystery brainrot icon and four name buttons. Click the right one to win! Buttons disable after a correct/incorrect answer, and a cooldown prevents spam.
+
+### `/tierlist`
+
+Generate a PNG tier-list image from a player's live inventory. Takes a user ID or username (resolved via Roblox API), and an optional `source` (team = active 6, or pc = PC). Brainrots are scored by IV% (60%) + Level (40%) and bucketed into S/A/B/C/D tiers. Requires Python 3 + Pillow on the host.
+
+### Catch game (spawn system)
+
+When a guild has a spawn channel configured via `/settings spawnchannel`, a random brainrot spawns there every minute. Users type the rot's **name** (or shortened name) to catch it before it disappears. Caught brainrots are stored in the SQLite database per-user, per-guild. Use `/settings reset` to clear your personal catches.
 
 ---
 
@@ -44,9 +81,10 @@ If the user doesn't exist or has no brainrot progress, the bot replies with a cl
 1. Go to <https://discord.com/developers/applications> → **New Application**.
 2. Open the **Bot** tab → click **Reset Token** → copy the token.
 3. Open **General Information** → copy the **Application ID**.
-4. Open **OAuth2 → URL Generator**:
+4. Under **Bot → Privileged Gateway Intents**, toggle on **Message Content Intent** (required for the spawn catch game).
+5. Open **OAuth2 → URL Generator**:
    - Scopes: `bot`, `applications.commands`
-   - Bot Permissions: `Send Messages`, `Embed Links` (text permission integer `274877991936` works too, but minimal is better — just `Send Messages` + `Embed Links` = `2048 + 8192`? Actually just tick them in the UI)
+   - Bot Permissions: `Send Messages`, `Embed Links`, `Manage Messages` (for spawn catch + deletion), `Change Nickname`, `Manage Webhooks` (for avatar), `View Channel`, `Read Message History`
    - Copy the generated URL and open it to invite the bot to your server.
 
 ### 2. Install + configure
@@ -78,6 +116,8 @@ You should see:
 ```
 
 Go to your server, try `/info type:rot` or `/inventory user:1559610713`, and enjoy.
+
+> **Prefer Docker?** Skip steps 2–4 above and jump to the [Docker section](#docker) for a one-command deploy with persistent data.
 
 ---
 
@@ -179,6 +219,43 @@ Set the `PORT` (or `HEALTH_CHECK_PORT`) environment variable to enable a lightwe
 {"status":"ok","bot":"Brainrot Bot","uptime":123.45}
 ```
 
+## Docker
+
+### Quick Start (Docker Compose)
+
+1. Copy `.env.example` to `.env` and fill in your bot token + client ID.
+2. Run `docker compose up -d --build` to build and start the bot.
+3. Check logs with `docker compose logs -f`.
+
+The bot's SQLite database (`/app/data/brainrot.db`) and tier-list images (`/app/tierlists`) are stored in named Docker volumes, so your data persists across container restarts and updates.
+
+### Environment Variables
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `DISCORD_TOKEN` | ✅ | Your bot's Discord token |
+| `DISCORD_CLIENT_ID` | ✅ | Your application's client ID |
+| `PORT` | ❌ | Port for the HTTP health-check endpoint (default: none) |
+| `HEALTH_CHECK_PORT` | ❌ | Alternative to `PORT` |
+| `LOG_LEVEL` | ❌ | Log verbosity: `info` (default), `debug`, `warn`, `error` |
+| `DB_PATH` | ❌ | Override the SQLite database file path (default: `/app/data/brainrot.db`) |
+
+### Manual Docker Build
+
+If you prefer not to use Compose:
+
+```bash
+docker build -t brainrot-bot .
+docker run -d \
+  --name brainrot-bot \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  --env-file .env \
+  -v brainrot_data:/app/data \
+  -v brainrot_tierlists:/app/tierlists \
+  brainrot-bot
+```
+
 ## Server settings
 
 The `/settings` command lets server admins configure bot behavior:
@@ -187,6 +264,16 @@ The `/settings` command lets server admins configure bot behavior:
 | ------- | ------------ |
 | `/settings welcomemessage` | View the current welcome message |
 | `/settings welcomemessage message:<text>` | Set a custom welcome message |
+| `/settings spawnchannel` | View the catch-game spawn channel |
+| `/settings spawnchannel channel:<channel>` | Set the channel where brainrots spawn every minute |
+| `/settings message` | View the current spawn announcement message |
+| `/settings message message:<text>` | Set the message shown when a brainrot spawns |
+| `/settings avatar` | View the current bot avatar URL |
+| `/settings avatar image:<url>` | Upload a new avatar for the bot |
+| `/settings username` | View the current bot username |
+| `/settings username name:<name>` | Rename the bot |
+| `/settings reset` | Clear your personal catch inventory for this server |
+| `/settings nuke` | ⚠️ Wipe ALL bot data (spawns, inventory, settings) for this server |
 
 When the bot joins a new server, it posts the welcome message in the system channel (or the first available text channel). The default message is:
 

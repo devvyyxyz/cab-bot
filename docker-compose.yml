@@ -1,0 +1,14 @@
+services:
+  brainrot-bot:
+    build: .
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - data:/app/data
+      - tierlists:/app/tierlists
+    restart: unless-stopped
+
+volumes:
+  data:
+  tierlists:

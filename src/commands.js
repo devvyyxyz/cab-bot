@@ -103,7 +103,6 @@ const commands = [
         .setName("nuke")
         .setDescription("⚠️ Wipe ALL bot data for this server (spawns, inventory, settings).")
     ),
->>>>>>>
 
 
   // ---------------------------------------------------------------- /inventory

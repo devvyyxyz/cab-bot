@@ -32,12 +32,10 @@ const {
   MediaGalleryItemBuilder,
   SeparatorBuilder,
   Events,
-  MessageFlags,
 } = require("discord.js");
 const { execFile } = require("child_process");
 const path = require("path");
 const http = require("http");
-const fs = require("fs");
 
 const rotsData = require("./src/data/rots.json").Data;
 const bagData = require("./src/data/bag.json").Data;
@@ -1170,7 +1168,7 @@ client.on(Events.MessageCreate, async (message) => {
     try {
       const spawnMsg = await message.channel.messages.fetch(spawn.messageId);
       await spawnMsg.delete().catch(() => {});
-    } catch (err) {
+    } catch {
       // Message may already be deleted; ignore.
     }
   }

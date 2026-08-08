@@ -1,0 +1,13 @@
+node_modules/
+.git/
+.gitignore
+.env
+*.log
+.DS_Store
+tierlists/
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md
+eslint.config.js
+data/
