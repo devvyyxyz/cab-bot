@@ -22,7 +22,8 @@ const {
   TIERLIST_OUT_DIR,
 } = require('./data');
 
-const { TextDisplayBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, SeparatorBuilder, ContainerBuilder, SectionBuilder, ButtonBuilder, ButtonStyle, SeparatorSpacingSize } = require('discord.js');
+// V2 components builders are provided by the v2 shim
+const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2MediaGalleryItemBuilder: MediaGalleryItemBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder, V2ButtonStyle: ButtonStyle, V2SeparatorSpacingSize: SeparatorSpacingSize } = require('v2componentsbuilder');
 const { execFile } = require('child_process');
 const emojis = require('./emojis');
 
@@ -378,8 +379,6 @@ function dailyRot(date = new Date()) {
   return { rot: sorted[seed], sorted, seed, dateStr: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` };
 }
 
-// ---------- Inventory pages ----------
-
 function brainrotSummary(entry) {
   const iv = Math.round((entry.IV ?? 0) * 100);
   const nick = entry.Nickname || entry.Species || 'Unknown';
@@ -517,48 +516,35 @@ function buildInventoryEmbeds(userId, inv) {
   // Small reusable builders.
   const text = (content) => new TextDisplayBuilder().setContent(content);
   const section = (button, ...contents) => {
-    let s = new SectionBuilder().setButtonAccessory(button);
-    for (const c of contents) s = s.addTextDisplayComponents(text(c));
-    return s;
+    return new SectionBuilder().setAccessory(button).setComponents(contents.map((c) => text(c)));
   };
-  const divider = () =>
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true);
-  const boardButton = (label, emoji) =>
-    new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel(label).setEmoji({ name: emoji }).setCustomId(`inv:${label}`);
+  const divider = () => new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true);
+  const boardButton = (label, emoji) => new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel(label).setEmoji({ name: emoji }).setCustomId(`inv:${label}`);
 
   const pages = [];
 
   // ---- Page 1: Overview + Team ----
-  const p1 = new ContainerBuilder()
-    .setAccentColor(0x8b5cf6)
-    .addSectionComponents(
-      section(
-        boardButton('Summary', '🎒'),
-        `🎒 Inventory — ${userId}`,
-      ),
-    )
-    .addTextDisplayComponents(text(
-      `**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`,
-    ))
-    .addSeparatorComponents(divider())
-    .addTextDisplayComponents(text(`⚔️ Active Team (${team.length}/6)`));
+  const p1 = new ContainerBuilder().setColor(0x8b5cf6).setComponents([
+    section(boardButton('Summary', '🎒'), `🎒 Inventory — ${userId}`),
+    new SectionBuilder().setComponents([text(`**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`)]),
+    divider(),
+    new SectionBuilder().setComponents([text(`⚔️ Active Team (${team.length}/6)`)]),
+  ]);
   if (team.length > 0) {
     const lines = team.slice(0, 6).map((t, i) => {
       const m = (t.Moveset || []).join(', ') || 'none';
       return `${i + 1}. ${brainrotSummary(t)}\nMoves: ${m}`;
     }).join('\n');
-    p1.addTextDisplayComponents(text(lines));
+    p1.setComponents([...(p1.setComponents ? [] : []), new SectionBuilder().setComponents([text(lines)])]);
   } else {
-    p1.addTextDisplayComponents(text('(no active team)'));
+    p1.setComponents([...(p1.setComponents ? [] : []), new SectionBuilder().setComponents([text('(no active team)')])]);
   }
   pages.push([p1]);
 
   // ---- Page 2: Hoverboards ----
-  const p2 = new ContainerBuilder()
-    .setAccentColor(0x06b6d4)
-    .addSectionComponents(
-      section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
-    );
+  const p2 = new ContainerBuilder().setColor(0x06b6d4).setComponents([
+    section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
+  ]);
   if (hoverboards.length > 0) {
     const lines = hoverboards.map((h, i) => {
       const meta = skinByName.get((h.Name || '').toLowerCase());
@@ -566,9 +552,12 @@ function buildInventoryEmbeds(userId, inv) {
       const em = emojis.emojiFor(h.Name || '');
       return `${i + 1}. ${em} **${h.Name}** — speed ${spd}`.trim();
     }).join('\n');
-    p2.addTextDisplayComponents(text(lines));
+      p2.setComponents([new SectionBuilder().setComponents([text(lines)])]);
   } else {
-    p2.addTextDisplayComponents(text('(no hoverboards owned)'));
+    p2.setComponents([
+      section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
+      new SectionBuilder().setComponents([text('(no hoverboards owned)')]),
+    ]);
   }
   pages.push([p2]);
 
@@ -583,9 +572,9 @@ function buildInventoryEmbeds(userId, inv) {
       const header =
         `# 💻 PC — page ${p + 1}/${totalPages} (${pc.length} total)` +
         (topIV ? `\n**Highest IV:** ${emojis.emojiFor(topIV.Species || '')} ${topIV.Nickname || topIV.Species} at ${Math.round((topIV.IV ?? 0) * 100)}%` : '');
-      const c = new ContainerBuilder()
-        .setAccentColor(0x22c55e)
-        .addSectionComponents(section(boardButton('pc', '💻'), header));
+      const c = new ContainerBuilder().setColor(0x22c55e).setComponents([
+        section(boardButton('pc', '💻'), header),
+      ]);
       const desc = slice
         .map((e, i) => {
           const offset = p * pageSize;
@@ -594,20 +583,29 @@ function buildInventoryEmbeds(userId, inv) {
           return `${offset + i + 1}. ${em} **${e.Nickname || e.Species}** — Lvl ${e.Level ?? '?'} • IV ${Math.round((e.IV ?? 0) * 100)}%\nMoves: ${moves}${e.Box ? ` • Box ${e.Box}` : ''}`;
         })
         .join('\n\n');
-      c.addTextDisplayComponents(text(desc));
+      c.setComponents([
+        section(boardButton('pc', '💻'), header),
+        new SectionBuilder().setComponents([text(desc)]),
+      ]);
       pages.push([c]);
     }
   }
 
   // ---- Last page: Bag ----
-  const pBag = new ContainerBuilder()
-    .setAccentColor(0xf59e0b)
-    .addSectionComponents(section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`));
+  const pBag = new ContainerBuilder().setColor(0xf59e0b).setComponents([
+    section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
+  ]);
   if (bagEntries.length > 0) {
     const bagStr = bagEntries.map(([name, qty]) => `${qty.toString().padStart(4)} × ${name}`).join('\n');
-    pBag.addTextDisplayComponents(text('```\n' + bagStr + '\n```'));
+      pBag.setComponents([
+        section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
+        new SectionBuilder().setComponents([text('```\n' + bagStr + '\n```')]),
+      ]);
   } else {
-    pBag.addTextDisplayComponents(text('(empty bag)'));
+      pBag.setComponents([
+        section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
+        new SectionBuilder().setComponents([text('(empty bag)')]),
+      ]);
   }
   pages.push([pBag]);
 

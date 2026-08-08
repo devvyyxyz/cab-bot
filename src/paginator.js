@@ -29,6 +29,9 @@ const {
   MessageFlags,
 } = require("discord.js");
 
+// V2 action/button builders for Components V2 mode
+const { V2ActionRowBuilder, V2ButtonBuilder } = require('v2componentsbuilder');
+
 const NAV_BUTTONS = {
   first:  { label: "⏮️", style: ButtonStyle.Secondary },
   prev:   { label: "◀️", style: ButtonStyle.Secondary },
@@ -55,9 +58,20 @@ class Paginator {
 
   // Build the navigation row for the current page state.
   _buildNavRow() {
-    const row = new ActionRowBuilder();
     const i = this.currentPage;
     const total = this.pages.length;
+    if (this.mode === 'components') {
+      const v2row = new V2ActionRowBuilder();
+      v2row.setComponents([
+        new V2ButtonBuilder().setCustomId('pg:first').setLabel(NAV_BUTTONS.first.label).setStyle(NAV_BUTTONS.first.style).setDisabled(i === 0),
+        new V2ButtonBuilder().setCustomId('pg:prev').setLabel(NAV_BUTTONS.prev.label).setStyle(NAV_BUTTONS.prev.style).setDisabled(i === 0),
+        new V2ButtonBuilder().setCustomId('pg:pages').setLabel(`${i + 1}/${total}`).setStyle(NAV_BUTTONS.pages.style).setDisabled(true),
+        new V2ButtonBuilder().setCustomId('pg:next').setLabel(NAV_BUTTONS.next.label).setStyle(NAV_BUTTONS.next.style).setDisabled(i === total - 1),
+        new V2ButtonBuilder().setCustomId('pg:last').setLabel(NAV_BUTTONS.last.label).setStyle(NAV_BUTTONS.last.style).setDisabled(i === total - 1),
+      ]);
+      return v2row;
+    }
+    const row = new ActionRowBuilder();
     row.addComponents(
       new ButtonBuilder()
         .setCustomId("pg:first")
@@ -151,15 +165,21 @@ class Paginator {
     this._collector.on("end", async () => {
       // Disable all nav buttons when the collector expires.
       try {
-        const row = new ActionRowBuilder();
-        for (const b of this._buildNavRow().components) {
-          row.addComponents(ButtonBuilder.from(b).setDisabled(true));
+        if (this.mode === 'components') {
+          const nav = this._buildNavRow();
+          const navJson = typeof nav.toJSON === 'function' ? nav.toJSON() : nav;
+          const disabledBtns = (navJson.components || []).map((b) => new V2ButtonBuilder().setCustomId(b.custom_id || b.customId || b.custom_id).setLabel(b.label).setStyle(b.style).setDisabled(true));
+          const disabledRow = new V2ActionRowBuilder().setComponents(disabledBtns);
+          const payload = { components: [...(this.pages[this.currentPage] || []), disabledRow], flags: MessageFlags.IsComponentsV2 };
+          await interaction.editReply(payload);
+        } else {
+          const row = new ActionRowBuilder();
+          for (const b of this._buildNavRow().components) {
+            row.addComponents(ButtonBuilder.from(b).setDisabled(true));
+          }
+          const payload = { embeds: [this.pages[this.currentPage]], components: [row] };
+          await interaction.editReply(payload);
         }
-        const payload =
-          this.mode === "embed"
-            ? { embeds: [this.pages[this.currentPage]], components: [row] }
-            : { components: [...(this.pages[this.currentPage] || []), row], flags: MessageFlags.IsComponentsV2 };
-        await interaction.editReply(payload);
       } catch {
         // Message may have been deleted; ignore.
       }

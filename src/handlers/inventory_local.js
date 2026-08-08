@@ -1,7 +1,9 @@
 // src/handlers/inventory_local.js
 const { MessageFlags, EmbedBuilder } = require('discord.js');
+const log = require('../logger');
 const { Paginator } = require('../paginator');
-const { ContainerBuilder, SectionBuilder, TextDisplayBuilder, ThumbnailBuilder } = require('discord.js');
+// Use the external V2 builders shim for Components V2 payloads
+const { V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2TextDisplayBuilder: TextDisplayBuilder, V2ThumbnailBuilder: ThumbnailBuilder } = require('v2componentsbuilder');
 
 async function handleInventoryLocal(interaction, ctx) {
   const userOpt = interaction.options.getUser ? interaction.options.getUser('user') : null;
@@ -35,29 +37,51 @@ async function handleInventoryLocal(interaction, ctx) {
   for (let i = 0; i < lines.length; i += perPage) {
     const chunk = lines.slice(i, i + perPage);
     // Try Components V2 page: a single Container with a header section and one section with lines
-    const header = new ContainerBuilder()
-      .setAccentColor(0x8b5cf6)
-      .addSectionComponents(
-        new SectionBuilder().addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(`🎒 Caught inventory — ${interaction.guild.name}`),
-          new TextDisplayBuilder().setContent(`User: ${interaction.user.tag} (${targetUser})`),
-        )
-      );
+    const headerSection = new SectionBuilder().setComponents([
+      new TextDisplayBuilder().setContent(`🎒 Caught inventory — ${interaction.guild.name}`),
+      new TextDisplayBuilder().setContent(`User: ${interaction.user.tag} (${targetUser})`),
+    ]);
 
-    const contentSection = new SectionBuilder();
+    const contentItems = [];
     for (const item of chunk) {
-      contentSection.addTextDisplayComponents(new TextDisplayBuilder().setContent(`${item.emoji} ${item.name} — x${item.count}`));
+      contentItems.push(new TextDisplayBuilder().setContent(`${item.emoji} ${item.name} — x${item.count}`));
     }
-    header.addSectionComponents(contentSection);
-    pages.push([header]);
+    const contentSection = new SectionBuilder().setComponents(contentItems);
+
+    const container = new ContainerBuilder().setColor(0x8b5cf6).setComponents([
+      headerSection,
+      contentSection,
+    ]);
+    pages.push([container]);
   }
 
   // If runtime supports Components V2 flag, use components mode; otherwise fallback to embeds.
   const useV2 = MessageFlags && MessageFlags.IsComponentsV2;
   if (useV2) {
-    const paginator = new Paginator({ pages, mode: 'components', userId: interaction.user.id, timeout: 120000 });
-    await paginator.send(interaction);
-    return;
+    // Validate component serialization before attempting to send to avoid runtime validation errors.
+    let valid = true;
+    try {
+      for (const page of pages) {
+        for (const comp of page) {
+          if (!comp || typeof comp.toJSON !== 'function') throw new Error('Component missing toJSON');
+          // Call toJSON to ensure builders validate now instead of during send
+          comp.toJSON();
+        }
+      }
+    } catch (err) {
+      valid = false;
+    }
+    if (valid) {
+      try {
+        const paginator = new Paginator({ pages, mode: 'components', userId: interaction.user.id, timeout: 120000 });
+        await paginator.send(interaction);
+        return;
+      } catch (err) {
+        log.warn('Components V2 send failed during send, falling back to embeds:', err);
+      }
+    } else {
+      log.debug && log.debug('Components V2 not available or pages failed validation; using embed fallback');
+    }
   }
 
   // Fallback to embed pages

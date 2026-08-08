@@ -6,8 +6,9 @@ const env = process.env.NODE_ENV || 'development';
 require('dotenv').config({ path: `.env.${env}`, override: true });
 
 const { Client, GatewayIntentBits, Events, MessageFlags, EmbedBuilder, WebhookClient,
-  TextDisplayBuilder, ThumbnailBuilder, SectionBuilder, SeparatorBuilder, SeparatorSpacingSize,
-  ButtonBuilder, ButtonStyle, ContainerBuilder } = require('discord.js');
+  ButtonBuilder, ButtonStyle } = require('discord.js');
+// V2 components builders from shim (aliased to original names)
+const { V2TextDisplayBuilder: TextDisplayBuilder, V2ThumbnailBuilder: ThumbnailBuilder, V2SectionBuilder: SectionBuilder, V2SeparatorBuilder: SeparatorBuilder, V2SeparatorSpacingSize: SeparatorSpacingSize, V2ContainerBuilder: ContainerBuilder } = require('v2componentsbuilder');
 const { execFile: _execFile } = require('child_process');
 const _path = require('path');
 const _http = require('http');
@@ -110,17 +111,18 @@ function checkExpiredSpawns() {
                 const em = spawn.rot ? require('./src/emojis').emojiFor(spawn.rot.FullName) : '';
                 const thumb = spawn.rot ? `${data.ICON_BASE}/${spawn.rot.Icon}` : '';
                 if (spawn.componentsV2) {
+                  const expiredSection = new SectionBuilder()
+                    .setAccessory(new ThumbnailBuilder().setURL(thumb))
+                    .setComponents([
+                      new TextDisplayBuilder().setContent(`${em} ${spawn.rot?.FullName || 'A brainrot'} got away!`),
+                      new TextDisplayBuilder().setContent('**⏰ Expired.** Nobody caught it in time, fr. A new one will spawn soon.'),
+                    ]);
                   const expiredContainer = new ContainerBuilder()
-                    .setAccentColor(0x6b7280)
-                    .addSectionComponents(
-                      new SectionBuilder()
-                        .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumb))
-                        .addTextDisplayComponents(
-                          new TextDisplayBuilder().setContent(`${em} ${spawn.rot?.FullName || 'A brainrot'} got away!`),
-                          new TextDisplayBuilder().setContent('**⏰ Expired.** Nobody caught it in time, fr. A new one will spawn soon.'),
-                        ),
-                    )
-                    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+                    .setColor(0x6b7280)
+                    .setComponents([
+                      expiredSection,
+                      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
+                    ]);
                   await msg.edit({ components: [expiredContainer] }).catch(() => {});
                 } else {
                   const expired = new EmbedBuilder()
@@ -161,23 +163,20 @@ async function spawnRotForGuild(guild) {
   // Build Components V2 spawn message
   const section = (thumbnailUrl, titleLine, rarityLine, flavorLine) =>
     new SectionBuilder()
-      .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumbnailUrl))
-      .addTextDisplayComponents(
+      .setAccessory(new ThumbnailBuilder().setURL(thumbnailUrl))
+      .setComponents([
         new TextDisplayBuilder().setContent(titleLine),
         new TextDisplayBuilder().setContent(rarityLine),
         new TextDisplayBuilder().setContent(flavorLine),
-      );
-  const container = new ContainerBuilder()
-    .setAccentColor(0x22c55e)
-    .addSectionComponents(
-      section(`${data.ICON_BASE}/${rot.Icon}`, `${em} ${rot.FullName} appeared!`, `**${rarity} ${stars}**`, flavor),
-    )
-    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
-    .addSectionComponents(
-      new SectionBuilder()
-        .setButtonAccessory(new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel('catch').setCustomId(`spawn:catch:${guild.id}:${Math.floor(expiresAt/1000)}`))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent("Type the brainrot's name to catch it!")),
-    );
+      ]);
+  const actionSection = new SectionBuilder()
+    .setAccessory(new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel('catch').setCustomId(`spawn:catch:${guild.id}:${Math.floor(expiresAt/1000)}`))
+    .setComponents([new TextDisplayBuilder().setContent("Type the brainrot's name to catch it!")]);
+  const container = new ContainerBuilder().setColor(0x22c55e).setComponents([
+    section(`${data.ICON_BASE}/${rot.Icon}`, `${em} ${rot.FullName} appeared!`, `**${rarity} ${stars}**`, flavor),
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
+    actionSection,
+  ]);
 
   // Also prepare a classic embed + action row fallback so the spawn always
   // appears even if Components V2 isn't available in the guild.
@@ -390,17 +389,14 @@ client.on(Events.MessageCreate, async (message) => {
     try {
       const spawnMsg = await message.channel.messages.fetch(spawn.messageId);
       if (spawn.componentsV2) {
-        const caughtContainer = new ContainerBuilder()
-          .setAccentColor(0x22c55e)
-          .addSectionComponents(
-            new SectionBuilder()
-              .setThumbnailAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`))
-              .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(`${em} ${rot.FullName} was caught!`),
-                new TextDisplayBuilder().setContent(`**${rarity} ${stars}**`),
-                new TextDisplayBuilder().setContent(`${data.flavorFor(rot)}\n\n🎉 **Caught by ${message.author.username}** (${message.author.tag})`),
-              ),
-          );
+        const caughtSection = new SectionBuilder()
+          .setAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`))
+          .setComponents([
+            new TextDisplayBuilder().setContent(`${em} ${rot.FullName} was caught!`),
+            new TextDisplayBuilder().setContent(`**${rarity} ${stars}**`),
+            new TextDisplayBuilder().setContent(`${data.flavorFor(rot)}\n\n🎉 **Caught by ${message.author.username}** (${message.author.tag})`),
+          ]);
+        const caughtContainer = new ContainerBuilder().setColor(0x22c55e).setComponents([caughtSection]);
         await spawnMsg.edit({ components: [caughtContainer] }).catch(() => {});
       } else {
         await spawnMsg.edit({ embeds: [caughtEmbed], components: [] }).catch(() => {});
@@ -485,17 +481,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         try {
           if (spawn.componentsV2) {
-            const caughtContainer = new ContainerBuilder()
-              .setAccentColor(0x22c55e)
-              .addSectionComponents(
-                new SectionBuilder()
-                  .setThumbnailAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`))
-                  .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(`${em} ${rot.FullName} was caught!`),
-                    new TextDisplayBuilder().setContent(`**${rarity} ${stars}**`),
-                    new TextDisplayBuilder().setContent(`${data.flavorFor(rot)}\n\n🎉 **Caught by ${interaction.user.username}** (${interaction.user.tag})`),
-                  ),
-              );
+            const caughtSection = new SectionBuilder()
+              .setAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`))
+              .setComponents([
+                new TextDisplayBuilder().setContent(`${em} ${rot.FullName} was caught!`),
+                new TextDisplayBuilder().setContent(`**${rarity} ${stars}**`),
+                new TextDisplayBuilder().setContent(`${data.flavorFor(rot)}\n\n🎉 **Caught by ${interaction.user.username}** (${interaction.user.tag})`),
+              ]);
+            const caughtContainer = new ContainerBuilder().setColor(0x22c55e).setComponents([caughtSection]);
             await interaction.update({ components: [caughtContainer], flags: MessageFlags.IsComponentsV2 });
           } else {
             const caughtEmbed = new EmbedBuilder()
