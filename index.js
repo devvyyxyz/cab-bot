@@ -8,7 +8,7 @@ require('dotenv').config({ path: `.env.${env}`, override: true });
 const { Client, GatewayIntentBits, Events, MessageFlags, EmbedBuilder, WebhookClient,
   ButtonBuilder, ButtonStyle } = require('discord.js');
 // V2 components builders from shim (aliased to original names)
-const { V2TextDisplayBuilder: TextDisplayBuilder, V2ThumbnailBuilder: ThumbnailBuilder, V2SectionBuilder: SectionBuilder, V2SeparatorBuilder: SeparatorBuilder, V2SeparatorSpacingSize: SeparatorSpacingSize, V2ContainerBuilder: ContainerBuilder } = require('v2componentsbuilder');
+const { V2TextDisplayBuilder: TextDisplayBuilder, V2ThumbnailBuilder: ThumbnailBuilder, V2SectionBuilder: SectionBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2ButtonBuilder: V2ButtonBuilder } = require('v2componentsbuilder');
 const { execFile: _execFile } = require('child_process');
 const _path = require('path');
 const _http = require('http');
@@ -117,12 +117,12 @@ function checkExpiredSpawns() {
                       new TextDisplayBuilder().setContent(`${em} ${spawn.rot?.FullName || 'A brainrot'} got away!`),
                       new TextDisplayBuilder().setContent('**⏰ Expired.** Nobody caught it in time, fr. A new one will spawn soon.'),
                     ]);
-                  const expiredContainer = new ContainerBuilder()
-                    .setColor(0x6b7280)
-                    .setComponents([
-                      expiredSection,
-                      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
-                    ]);
+                                const expiredContainer = new ContainerBuilder()
+                                  .setColor(0x6b7280)
+                                  .setComponents([
+                                    expiredSection,
+                                    new SeparatorBuilder().setDivider(true),
+                                  ]);
                   await msg.edit({ components: [expiredContainer] }).catch(() => {});
                 } else {
                   const expired = new EmbedBuilder()
@@ -170,11 +170,11 @@ async function spawnRotForGuild(guild) {
         new TextDisplayBuilder().setContent(flavorLine),
       ]);
   const actionSection = new SectionBuilder()
-    .setAccessory(new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel('catch').setCustomId(`spawn:catch:${guild.id}:${Math.floor(expiresAt/1000)}`))
+    .setAccessory(new V2ButtonBuilder().setStyle(ButtonStyle.Success).setLabel('catch').setCustomId(`spawn:catch:${guild.id}:${Math.floor(expiresAt/1000)}`))
     .setComponents([new TextDisplayBuilder().setContent("Type the brainrot's name to catch it!")]);
   const container = new ContainerBuilder().setColor(0x22c55e).setComponents([
     section(`${data.ICON_BASE}/${rot.Icon}`, `${em} ${rot.FullName} appeared!`, `**${rarity} ${stars}**`, flavor),
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
+    new SeparatorBuilder().setDivider(true),
     actionSection,
   ]);
 
@@ -532,10 +532,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const isCorrect = clickedName === answerRot.FullName;
         const round = embeds.newGuessRound();
         round.answer = answerRot;
-        if (isCorrect) {
-          await interaction.update({ embeds: [embeds.buildGuessEmbed(round)], components: [embeds.buildGuessComponents(round, true, { clicked: clickedName })] });
+        const rows = embeds.buildGuessComponents(round, true, { clicked: clickedName });
+        if (MessageFlags && MessageFlags.IsComponentsV2) {
+          await interaction.update({ embeds: [embeds.buildGuessEmbed(round)], components: [rows.v2Row], flags: MessageFlags.IsComponentsV2 });
         } else {
-          await interaction.update({ embeds: [embeds.buildGuessEmbed(round)], components: [embeds.buildGuessComponents(round, true, { clicked: clickedName })] });
+          await interaction.update({ embeds: [embeds.buildGuessEmbed(round)], components: [rows.row] });
         }
         return;
       }

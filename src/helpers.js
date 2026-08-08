@@ -23,8 +23,9 @@ const {
 } = require('./data');
 
 // V2 components builders are provided by the v2 shim
-const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2MediaGalleryItemBuilder: MediaGalleryItemBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder, V2ButtonStyle: ButtonStyle, V2SeparatorSpacingSize: SeparatorSpacingSize } = require('v2componentsbuilder');
+const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2MediaGalleryItemBuilder: MediaGalleryItemBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder } = require('v2componentsbuilder');
 const { execFile } = require('child_process');
+const { ButtonStyle } = require('discord.js');
 const emojis = require('./emojis');
 
 // ---------- Lookup helpers ----------
@@ -518,7 +519,7 @@ function buildInventoryEmbeds(userId, inv) {
   const section = (button, ...contents) => {
     return new SectionBuilder().setAccessory(button).setComponents(contents.map((c) => text(c)));
   };
-  const divider = () => new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true);
+  const divider = () => new SeparatorBuilder().setDivider(true);
   const boardButton = (label, emoji) => new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel(label).setEmoji({ name: emoji }).setCustomId(`inv:${label}`);
 
   const pages = [];

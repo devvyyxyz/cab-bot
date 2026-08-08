@@ -37,6 +37,8 @@ const { execFile: _execFile } = require('child_process');
 const emojis = require('./emojis');
 const { Paginator: _Paginator } = require('./paginator');
 const helpers = require('./helpers');
+// V2 action/button builders for optional Components V2 payloads
+const { V2ActionRowBuilder, V2ButtonBuilder } = require('v2componentsbuilder');
 
 const { rarityLabel, buildInventoryPages, brainrotSummary } = helpers;
 
@@ -403,6 +405,8 @@ function buildGuessEmbed(round) {
 
 function buildGuessComponents(round, disabled = false, revealedAnswer = null) {
   const row = new ActionRowBuilder();
+  const v2row = new V2ActionRowBuilder();
+  const v2buttons = [];
   for (const opt of round.options) {
     const isAnswer = opt.FullName === round.answer.FullName;
     let style = ButtonStyle.Secondary;
@@ -425,8 +429,10 @@ function buildGuessComponents(round, disabled = false, revealedAnswer = null) {
         .setStyle(style)
         .setDisabled(disabled)
     );
+    v2buttons.push(new V2ButtonBuilder().setCustomId(`guess:${opt.FullName}`).setLabel(label.slice(0, 80)).setStyle(style).setDisabled(disabled));
   }
-  return row;
+  v2row.setComponents(v2buttons);
+  return { row, v2Row: v2row };
 }
 
 // ---------- /trade ----------
@@ -507,6 +513,10 @@ function buildStartEmbed(appId) {
       .setURL(APP_DIRECTORY_URL(appId))
   );
 
+  const v2row = new V2ActionRowBuilder().setComponents([
+    new V2ButtonBuilder().setLabel('🚀 Open App Directory').setStyle(ButtonStyle.Link).setCustomId(`appdir:${appId}`),
+  ]);
+
   const embed = new EmbedBuilder()
     .setTitle('🚀 Launch Brainrot Bot Activity')
     .setDescription(
@@ -519,7 +529,7 @@ function buildStartEmbed(appId) {
     .setFooter({ text: 'stay sigma, fr fr' })
     .setTimestamp();
 
-  return { embed, row };
+  return { embed, row, v2Row: v2row };
 }
 
 module.exports = {

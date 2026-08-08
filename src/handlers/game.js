@@ -16,8 +16,12 @@ const { rarityLabel } = require('../helpers');
 const data = require('../data');
 
 async function handleStart(interaction, ctx) {
-  const { embed, row } = buildStartEmbed(ctx.client.user.id);
-  await interaction.reply({ embeds: [embed], components: [row] });
+  const b = buildStartEmbed(ctx.client.user.id);
+  if (MessageFlags && MessageFlags.IsComponentsV2) {
+    await interaction.reply({ embeds: [b.embed], components: [b.v2Row], flags: MessageFlags.IsComponentsV2 });
+  } else {
+    await interaction.reply({ embeds: [b.embed], components: [b.row] });
+  }
 }
 
 async function handleTop(interaction, ctx) {
@@ -62,8 +66,12 @@ async function handleDaily(interaction, ctx) {
 async function handleGuess(interaction, ctx) {
   const round = newGuessRound();
   const embed = buildGuessEmbed(round);
-  const row = buildGuessComponents(round, false);
-  await interaction.reply({ embeds: [embed], components: [row] });
+  const rows = buildGuessComponents(round, false);
+  if (MessageFlags && MessageFlags.IsComponentsV2) {
+    await interaction.reply({ embeds: [embed], components: [rows.v2Row], flags: MessageFlags.IsComponentsV2 });
+  } else {
+    await interaction.reply({ embeds: [embed], components: [rows.row] });
+  }
 }
 
 module.exports = {

@@ -42,11 +42,9 @@ async function handleInventoryLocal(interaction, ctx) {
       new TextDisplayBuilder().setContent(`User: ${interaction.user.tag} (${targetUser})`),
     ]);
 
-    const contentItems = [];
-    for (const item of chunk) {
-      contentItems.push(new TextDisplayBuilder().setContent(`${item.emoji} ${item.name} — x${item.count}`));
-    }
-    const contentSection = new SectionBuilder().setComponents(contentItems);
+    // Combine the chunk lines into a single TextDisplay to obey Section limits (1-3 text displays)
+    const combined = chunk.map((item) => `${item.emoji} ${item.name} — x${item.count}`).join('\n');
+    const contentSection = new SectionBuilder().setComponents([new TextDisplayBuilder().setContent(combined)]);
 
     const container = new ContainerBuilder().setColor(0x8b5cf6).setComponents([
       headerSection,
