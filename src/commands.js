@@ -133,6 +133,11 @@ const commands = [
         .setRequired(true)
     ),
 
+  // ---------------------------------------------------------------- /ping
+  new SlashCommandBuilder()
+    .setName("ping")
+    .setDescription("Check bot latency and API ping."),
+
   // ---------------------------------------------------------------- /help
   new SlashCommandBuilder()
     .setName("help")
