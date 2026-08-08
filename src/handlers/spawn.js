@@ -32,7 +32,7 @@ async function handleForceSpawn(interaction, ctx) {
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const guild = interaction.guild;
   if (!guild) {

@@ -5,7 +5,9 @@ require('dotenv').config({ path: '.env' });
 const env = process.env.NODE_ENV || 'development';
 require('dotenv').config({ path: `.env.${env}`, override: true });
 
-const { Client, GatewayIntentBits, Events, MessageFlags, EmbedBuilder, WebhookClient } = require('discord.js');
+const { Client, GatewayIntentBits, Events, MessageFlags, EmbedBuilder, WebhookClient,
+  TextDisplayBuilder, ThumbnailBuilder, SectionBuilder, SeparatorBuilder, SeparatorSpacingSize,
+  ButtonBuilder, ButtonStyle, ContainerBuilder } = require('discord.js');
 const { execFile: _execFile } = require('child_process');
 const _path = require('path');
 const _http = require('http');
@@ -115,13 +117,15 @@ function checkExpiredSpawns() {
             .fetch(spawn.messageId)
             .then(async (msg) => {
               const em = spawn.rot ? require('./src/emojis').emojiFor(spawn.rot.FullName) : '';
+              const thumb = spawn.rot ? `${data.ICON_BASE}/${spawn.rot.Icon}` : '';
               const expired = new EmbedBuilder()
                 .setTitle(`${em} ${spawn.rot?.FullName || 'A brainrot'} got away!`)
                 .setDescription(`**⏰ Expired.** Nobody caught it in time, fr. A new one will spawn soon.`)
+                .setThumbnail(thumb)
                 .setColor(0x6b7280)
                 .setFooter({ text: 'Brainrot Bot • expired' })
                 .setTimestamp();
-              await msg.edit({ embeds: [expired] }).catch(() => {});
+              await msg.edit({ embeds: [expired], components: [] }).catch(() => {});
               // Auto-delete shortly after so the channel doesn't clutter.
               setTimeout(() => msg.delete().catch(() => {}), 10000);
             })
@@ -146,18 +150,39 @@ async function spawnRotForGuild(guild) {
   const rarity = helpers.rarityLabel(rot.Rarity);
   const flavor = data.flavorFor(rot);
 
+  const expiresAt = Date.now() + SPAWN_DURATION_MS;
+
+  // Build Components V2 spawn message
+  const section = (thumbnailUrl, titleLine, rarityLine, flavorLine) =>
+    new SectionBuilder()
+      .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumbnailUrl))
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(titleLine),
+        new TextDisplayBuilder().setContent(rarityLine),
+        new TextDisplayBuilder().setContent(flavorLine),
+      );
+
+  // Also send a classic embed + action row as a reliable fallback so the
+  // spawn always appears even if Components V2 isn't available in the guild.
   const spawnEmbed = new EmbedBuilder()
     .setTitle(`${em} ${rot.FullName} appeared!`)
     .setDescription(`**${rarity} ${stars}**\n\n${flavor}\n\nType the brainrot's name to catch it!`)
     .setThumbnail(`${data.ICON_BASE}/${rot.Icon}`)
     .setColor(0x22c55e)
-    .setFooter({ text: `Brainrot Bot • expires in 60s` })
+    .setFooter({ text: `Brainrot Bot • expires in ${Math.round(SPAWN_DURATION_MS/1000)}s` })
     .setTimestamp();
 
-  const msg = await channel.send({ embeds: [spawnEmbed] }).catch(() => null);
+  const row = new (require('discord.js').ActionRowBuilder)();
+  row.addComponents(
+    new (require('discord.js').ButtonBuilder)()
+      .setCustomId(`spawn:catch:${guild.id}:${Math.floor(expiresAt/1000)}`)
+      .setLabel('catch')
+      .setStyle(ButtonStyle.Success)
+  );
+
+  const msg = await channel.send({ embeds: [spawnEmbed], components: [row] }).catch(() => null);
   if (!msg) return;
 
-  const expiresAt = Date.now() + SPAWN_DURATION_MS;
   activeSpawns.set(guild.id, { rot, expiresAt, messageId: msg.id, channelId });
   db.setActiveSpawn(guild.id, rot.FullName, Math.floor(expiresAt / 1000));
 }
@@ -280,21 +305,17 @@ client.on(Events.MessageCreate, async (message) => {
   // Edit the original spawn embed to show it was caught
   const caughtEmbed = new EmbedBuilder()
     .setTitle(`${em} ${rot.FullName} was caught!`)
-    .setDescription(`**${rarity} ${stars}**
-
-${data.flavorFor(rot)}
-
-🎉 **Caught by ${message.author.username}** (${message.author.tag})`)
+    .setDescription(`**${rarity} ${stars}**\n\n${data.flavorFor(rot)}\n\n🎉 **Caught by ${message.author.username}** (${message.author.tag})`)
     .setThumbnail(`${data.ICON_BASE}/${rot.Icon}`)
     .setColor(0x22c55e)
     .setFooter({ text: `Brainrot Bot • caught by ${message.author.tag}` })
     .setTimestamp();
 
-  // Edit the original spawn message
+  // Edit the original spawn message to show caught state
   if (spawn.messageId) {
     try {
       const spawnMsg = await message.channel.messages.fetch(spawn.messageId);
-      await spawnMsg.edit({ embeds: [caughtEmbed] }).catch(() => {});
+      await spawnMsg.edit({ embeds: [caughtEmbed], components: [] }).catch(() => {});
     } catch {
       // Message may already be deleted; ignore.
     }
