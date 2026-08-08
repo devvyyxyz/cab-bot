@@ -16,9 +16,9 @@ All info queries are condensed into a single `/info` command with a `type` choic
 | `/info type:hoverboard [random]` | Look up a specific hoverboard skin or show a random one |
 | `/info type:item [random]`    | Look up a specific bag item or show a random one          |
 | `/info type:about`            | Bot info + full command list                              |
+| `/info type:spawnlocation [world] [zone]` | Brainrots that spawn at a location (or random) |
 | `/inventory user:<id>`        | Live player inventory — team, hoverboards, PC, bag       |
 | `/trade calculate a:<rot> b:<rot>` | Trade fairness calculator with IV/level support     |
-| `/spawn [world] [zone]`       | Brainrots that spawn at a location, or a random spawn    |
 | `/top by:<stat> [count]`      | Top N brainrots by rarity/attack/health/speed            |
 | `/daily`                      | Brainrot of the day (same for everyone, changes at UTC midnight) |
 | `/guess`                      | Mini-game: identify a brainrot from its icon             |
@@ -31,7 +31,7 @@ The bot speaks mostly-normal English with brainrot slang sprinkled in ("fr", "ng
 
 ### `/info`
 
-Use `type` to pick a category (rot, hoverboard, item, or about), and optionally a `name` to look up a specific entry (autocomplete helps). Add `random:true` for an explicit random pick, or just omit the name.
+Use `type` to pick a category (rot, hoverboard, item, spawnlocation, or about), and optionally a `name` to look up a specific entry (autocomplete helps). Add `random:true` for an explicit random pick, or just omit the name.
 
 ### `/inventory`
 
@@ -48,9 +48,9 @@ If the user doesn't exist or has no brainrot progress, the bot replies with a cl
 
 Compare two brainrots for trade fairness. Optionally specify `a_iv`, `a_level`, `b_iv`, `b_level` (IV 0–100, level 1–100). The bot computes a value score from rarity, IV, level, exclusivity, and base stats, then gives a verdict: ✅ fair / ⚠️ slightly one-sided / ❌ one-sided / 🚫 rip-off.
 
-### `/spawn`
+### `/info type:spawnlocation`
 
-Show brainrots that spawn at a given world/zone (e.g. `/spawn world:2 zone:3`), or omit both arguments for a random spawn location. Note: 32 of 90 brainrots have no fixed spawn (mostly exclusives).
+Show brainrots that spawn at a given world/zone (e.g. `/info type:spawnlocation world:2 zone:3`), or omit both arguments for a random spawn location. Note: 32 of 90 brainrots have no fixed spawn (mostly exclusives).
 
 ### `/top`
 

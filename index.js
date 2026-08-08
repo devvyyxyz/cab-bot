@@ -2,20 +2,20 @@
 // Brainrot Bot — a Discord bot like "cat bot" but for Italian brainrot characters.
 //
 // Commands (all slash):
-//   /info type:rot [name:<x>]            → random or specific brainrot
-//   /info type:hoverboard [name:<x>]     → random or specific hoverboard skin
-//   /info type:item [name:<x>]           → random or specific bag item
-//   /info type:about                     → bot info
-//   /inventory user:<id>                 → live player inventory from indieun.com/cab
-//   /help [command:<x>]                  → general help or per-command help
+//   /info type:rot [name:<x>]                 → random or specific brainrot
+//   /info type:hoverboard [name:<x>]          → random or specific hoverboard skin
+//   /info type:item [name:<x>]                → random or specific bag item
+//   /info type:spawnlocation [world] [zone]   → brainrots at a location (or random)
+//   /info type:about                          → bot info
+//   /inventory user:<id>                      → live player inventory from indieun.com/cab
+//   /help [command:<x>]                       → general help or per-command help
 //   /trade calculate a:<x> [a_iv] [a_level] b:<x> [b_iv] [b_level]
-//                                        → calculate whether a trade is fair
-//   /start                               → launch the Brainrot Bot activity
-//   /spawn [world] [zone]                → brainrots that spawn at a location (or random)
-//   /top by:<stat> [count]               → top N brainrots by rarity/attack/health/speed
-//   /daily                               → brainrot of the day (same all day UTC)
-//   /guess                               → mini-game: identify a brainrot from its icon
-//   /tierlist user:<id> [source]         → generate a tier-list image from a live inventory
+//                                             → calculate whether a trade is fair
+//   /start                                    → launch the Brainrot Bot activity
+//   /top by:<stat> [count]                    → top N brainrots by rarity/attack/health/speed
+//   /daily                                    → brainrot of the day (same all day UTC)
+//   /guess                                    → mini-game: identify a brainrot from its icon
+//   /tierlist user:<id> [source]              → generate a tier-list image from a live inventory
 
 require("dotenv").config({ path: ".env" });
 const env = process.env.NODE_ENV || "development";
@@ -35,6 +35,7 @@ const {
     SeparatorBuilder,
   MessageFlags,
   Events,
+  WebhookClient,
 } = require("discord.js");
 const { execFile } = require("child_process");
 const path = require("path");
@@ -73,7 +74,6 @@ const COOLDOWNS = {
   tierlist: 15000,
   info: 0,
   trade: 0,
-  spawn: 0,
   top: 0,
   daily: 0,
   start: 0,
@@ -176,13 +176,18 @@ function looksLikeUserId(s) {
 async function resolveRobloxUser(input) {
   if (looksLikeUserId(input)) return { userId: input };
   const url = "https://users.roblox.com/v2/users/username/by-username";
+  const robloxApiKey = process.env.ROBLOX_API_KEY;
   try {
+    const headers = {
+      "User-Agent": "BrainrotBot/1.0 (Discord bot)",
+      "Content-Type": "application/json",
+    };
+    if (robloxApiKey) {
+      headers["x-api-key"] = robloxApiKey;
+    }
     const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "User-Agent": "BrainrotBot/1.0 (Discord bot)",
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({ usernames: [input], excludeBannedUsers: false }),
       signal: AbortSignal.timeout(10000),
     });
@@ -963,6 +968,65 @@ function startHealthCheckServer(port) {
 const SPAWN_INTERVAL_MS = 60 * 1000; // 1 minute
 const SPAWN_DURATION_MS = 60 * 1000; // 1 minute to catch
 const activeSpawns = new Map(); // guildId → { rot, expiresAt, messageId, channelId }
+const guildWebhooks = new Map(); // guildId → Webhook (cached)
+
+// Get or create a webhook for this guild with the custom avatar.
+// Returns null if the guild has no custom avatar or webhook creation fails.
+async function ensureGuildAvatarWebhook(guild, avatarUrl) {
+  const guildId = guild.id;
+  const cached = guildWebhooks.get(guildId);
+  if (cached) return cached;
+
+  const channelId = db.getGuildSetting(guildId, "spawn_channel");
+  if (!channelId) return null;
+
+  const channel = guild.channels.cache.get(channelId);
+  if (!channel || !channel.isTextBased()) return null;
+
+  try {
+    // Clean up old webhook if stored in DB.
+    const oldWebhookId = db.getGuildSetting(guildId, "avatar_webhook_id");
+    if (oldWebhookId) {
+      try {
+        const old = await guild.fetchWebhooks().then((ws) => ws.find((w) => w.id === oldWebhookId));
+        if (old) await old.delete();
+      } catch {
+        // ignore missing old webhook
+      }
+    }
+
+    const webhook = await channel.createWebhook({
+      name: client.user.username,
+      avatar: avatarUrl,
+    });
+    db.setGuildSetting(guildId, "avatar_webhook_id", webhook.id);
+    db.setGuildSetting(guildId, "avatar_webhook_token", webhook.token);
+    guildWebhooks.set(guildId, webhook);
+    return webhook;
+  } catch (err) {
+    log.warn(`Failed to create avatar webhook for guild ${guildId}: ${err.message}`);
+    return null;
+  }
+}
+
+// Get the cached webhook for a guild (re-fetch if missing).
+async function getGuildAvatarWebhook(guild) {
+  const guildId = guild.id;
+  let webhook = guildWebhooks.get(guildId);
+  if (webhook) return webhook;
+
+  const webhookId = db.getGuildSetting(guildId, "avatar_webhook_id");
+  const webhookToken = db.getGuildSetting(guildId, "avatar_webhook_token");
+  if (!webhookId || !webhookToken) return null;
+
+  try {
+    webhook = await new WebhookClient({ id: webhookId, token: webhookToken });
+    guildWebhooks.set(guildId, webhook);
+    return webhook;
+  } catch {
+    return null;
+  }
+}
 
 // Build the embed shown when a rot spawns.
 function buildSpawnCatchEmbed(rot) {
@@ -1009,7 +1073,18 @@ async function spawnRotForGuild(guild) {
     "A wild brainrot appeared! Type its name to catch it, fr.";
   try {
     const embed = buildSpawnCatchEmbed(rot);
-    const sent = await channel.send({ content: spawnMsg, embeds: [embed] });
+    const customAvatar = db.getGuildSetting(guildId, "avatar");
+    let sent;
+    if (customAvatar) {
+      const webhook = await getGuildAvatarWebhook(guild);
+      if (webhook) {
+        sent = await webhook.send({ content: spawnMsg, embeds: [embed] });
+      } else {
+        sent = await channel.send({ content: spawnMsg, embeds: [embed] });
+      }
+    } else {
+      sent = await channel.send({ content: spawnMsg, embeds: [embed] });
+    }
     activeSpawns.get(guildId).messageId = sent.id;
   } catch (err) {
     log.warn(`Failed to send spawn message in guild ${guildId}: ${err.message}`);
@@ -1359,8 +1434,40 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
+      if (type === "spawnlocation") {
+        const world = interaction.options.getInteger("world");
+        const zone = interaction.options.getInteger("zone");
+
+        if (!world && !zone) {
+          await interaction.reply({ embeds: [buildRandomSpawnEmbed()] });
+          return;
+        }
+
+        if ((world && !zone) || (zone && !world)) {
+          await interaction.reply({
+            content:
+              "Give me both `world` and `zone`, bro — or leave both blank for a random spawn. " +
+              "Like `/info type:spawnlocation world:2 zone:3`.",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const key = `W${world}.Z${zone}`;
+        const list = spawnIndex.get(key);
+        if (!list || list.length === 0) {
+          await interaction.reply({
+            content: `No brainrots spawn at W${world}.Z${zone}, fr. Valid zones: ${spawnKeys.join(", ")}.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+        await interaction.reply({ embeds: [buildSpawnEmbed(key, list)] });
+        return;
+      }
+
       await interaction.reply({
-        content: "Unknown info type, fr. Pick rot / hoverboard / item / about.",
+        content: "Unknown info type, fr. Pick rot / hoverboard / item / spawnlocation / about.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -1556,15 +1663,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
           }
           try {
-            await client.user.setAvatar(avatarUrl);
+            // Store per-guild avatar URL (no global change).
             db.setGuildSetting(guildId, "avatar", avatarUrl);
+            // Create/update a webhook with the custom avatar for this guild's spawn channel.
+            const guild = interaction.guild;
+            if (guild) {
+              await ensureGuildAvatarWebhook(guild, avatarUrl);
+            }
             await interaction.reply({
-              content: `✅ Bot avatar updated, fr.`,
+              content: `✅ Bot avatar saved for this server, fr.`,
               flags: MessageFlags.Ephemeral,
             });
           } catch (err) {
             await interaction.reply({
-              content: `❌ Couldn't set avatar: ${err.message}. Make sure the URL is a valid image.`,
+              content: `❌ Couldn't save avatar: ${err.message}. Make sure the URL is a valid image.`,
               flags: MessageFlags.Ephemeral,
             });
           }
@@ -1572,12 +1684,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
           const current = db.getGuildSetting(guildId, "avatar");
           if (current) {
             await interaction.reply({
-              content: `Current bot avatar URL:\n> ${current}\n\nTo change it, use \`/settings avatar image:<url>\`.`,
+              content: `Current server avatar URL:\n> ${current}\n\nTo change it, use \`/settings avatar image:<url>\`.`,
               flags: MessageFlags.Ephemeral,
             });
           } else {
             await interaction.reply({
-              content: "No custom avatar set. Use `/settings avatar image:<url>` to set one.",
+              content: "No custom avatar set for this server. Use `/settings avatar image:<url>` to set one.",
               flags: MessageFlags.Ephemeral,
             });
           }
@@ -1587,24 +1699,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       if (sub === "username") {
         const name = interaction.options.getString("name");
+        const guild = interaction.guild;
         if (name) {
           try {
-            await client.user.setUsername(name);
+            if (guild) {
+              await guild.members.me.setNickname(name);
+            }
             db.setGuildSetting(guildId, "username", name);
             await interaction.reply({
-              content: `✅ Bot username set to \`${name}\`, fr.`,
+              content: `✅ Bot nickname set to \`${name}\` for this server, fr.`,
               flags: MessageFlags.Ephemeral,
             });
           } catch (err) {
             await interaction.reply({
-              content: `❌ Couldn't set username: ${err.message}. Discord limits username changes.`,
+              content: `❌ Couldn't set nickname: ${err.message}. Make sure I have the Manage Nicknames permission.`,
               flags: MessageFlags.Ephemeral,
             });
           }
         } else {
-          const current = db.getGuildSetting(guildId, "username") || client.user.username;
+          let current = db.getGuildSetting(guildId, "username");
+          if (!current && guild) {
+            current = guild.members.me.nickname || client.user.username;
+          } else if (!current) {
+            current = client.user.username;
+          }
           await interaction.reply({
-            content: `Current bot username: \`${current}\`\n\nTo change it, use \`/settings username name:<name>\`.`,
+            content: `Current bot nickname for this server: \`${current}\`\n\nTo change it, use \`/settings username name:<name>\`.`,
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -1643,40 +1763,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.commandName === "start") {
       const { embed, row } = buildStartEmbed(client.user.id);
       await interaction.reply({ embeds: [embed], components: [row] });
-      return;
-    }
-
-    // ---------------- /spawn ----------------
-    if (interaction.commandName === "spawn") {
-      const world = interaction.options.getInteger("world");
-      const zone = interaction.options.getInteger("zone");
-
-      if (!world && !zone) {
-        // Random spawn location
-        await interaction.reply({ embeds: [buildRandomSpawnEmbed()] });
-        return;
-      }
-
-      if ((world && !zone) || (zone && !world)) {
-        await interaction.reply({
-          content:
-            "Give me both `world` and `zone`, bro — or leave both blank for a random spawn. " +
-            "Like `/spawn world:2 zone:3`.",
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      const key = `W${world}.Z${zone}`;
-      const list = spawnIndex.get(key);
-      if (!list || list.length === 0) {
-        await interaction.reply({
-          content: `No brainrots spawn at W${world}.Z${zone}, fr. Valid zones: ${spawnKeys.join(", ")}.`,
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-      await interaction.reply({ embeds: [buildSpawnEmbed(key, list)] });
       return;
     }
 

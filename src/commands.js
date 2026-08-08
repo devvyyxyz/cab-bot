@@ -17,6 +17,7 @@ const commands = [
           { name: "rot", value: "rot" },
           { name: "hoverboard", value: "hoverboard" },
           { name: "item", value: "item" },
+          { name: "spawnlocation", value: "spawnlocation" },
           { name: "about", value: "about" }
         )
     )
@@ -32,6 +33,22 @@ const commands = [
         .setName("random")
         .setDescription("Return a random entry instead of looking up a specific name.")
         .setRequired(false)
+    )
+    .addIntegerOption((opt) =>
+      opt
+        .setName("world")
+        .setDescription("World number (1 or 2). Used with type:spawnlocation for a specific location.")
+        .setRequired(false)
+        .setMinValue(1)
+        .setMaxValue(2)
+    )
+    .addIntegerOption((opt) =>
+      opt
+        .setName("zone")
+        .setDescription("Zone number (1-3). Used with type:spawnlocation for a specific location.")
+        .setRequired(false)
+        .setMinValue(1)
+        .setMaxValue(3)
     ),
 
   // ---------------------------------------------------------------- /settings
@@ -131,7 +148,7 @@ const commands = [
           { name: "trade", value: "trade" },
           { name: "start", value: "start" },
           { name: "help", value: "help" },
-          { name: "spawn", value: "spawn" },
+          { name: "spawnlocation", value: "spawnlocation" },
           { name: "top", value: "top" },
           { name: "daily", value: "daily" },
           { name: "guess", value: "guess" },
@@ -172,27 +189,6 @@ const commands = [
   new SlashCommandBuilder()
     .setName("start")
     .setDescription("Launch the Brainrot Bot activity."),
-
-  // ---------------------------------------------------------------- /spawn
-  new SlashCommandBuilder()
-    .setName("spawn")
-    .setDescription("Show brainrots that spawn at a given world/zone (or a random spawn location).")
-    .addIntegerOption((opt) =>
-      opt
-        .setName("world")
-        .setDescription("World number (1 or 2). Omit for a random spawn location.")
-        .setRequired(false)
-        .setMinValue(1)
-        .setMaxValue(2)
-    )
-    .addIntegerOption((opt) =>
-      opt
-        .setName("zone")
-        .setDescription("Zone number (1-3). Omit for a random spawn location.")
-        .setRequired(false)
-        .setMinValue(1)
-        .setMaxValue(3)
-    ),
 
   // ---------------------------------------------------------------- /top
   new SlashCommandBuilder()
