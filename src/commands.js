@@ -18,8 +18,15 @@ const commands = [
           { name: "hoverboard", value: "hoverboard" },
           { name: "item", value: "item" },
           { name: "spawnlocation", value: "spawnlocation" },
+          { name: "inventory", value: "inventory" },
           { name: "about", value: "about" }
         )
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("user")
+        .setDescription('Roblox user ID (e.g. "1559610713") or username. Used with type:inventory.')
+        .setRequired(false)
     )
     .addStringOption((opt) =>
       opt
@@ -122,16 +129,7 @@ const commands = [
     ),
 
 
-  // ---------------------------------------------------------------- /inventory
-  new SlashCommandBuilder()
-    .setName("inventory")
-    .setDescription("Look up a player's live inventory from indieun.com/cab (by UID or username).")
-    .addStringOption((opt) =>
-      opt
-        .setName("user")
-        .setDescription('Roblox user ID (e.g. "1559610713") or username.')
-        .setRequired(true)
-    ),
+  // Note: Inventory is now available via `/info type:inventory user:<id|username>`
 
   // ---------------------------------------------------------------- /ping
   new SlashCommandBuilder()

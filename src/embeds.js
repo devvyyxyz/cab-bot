@@ -45,14 +45,14 @@ const { rarityLabel, buildInventoryPages, brainrotSummary } = helpers;
 const HELP = {
   info: {
     summary: 'Look up brainrot info — rot, hoverboard, item, or about.',
-    usage: '/info type:<rot|hoverboard|item|about> [name:<query>]',
-    examples: ['/info type:rot', '/info type:rot name:Brr Brrr Patapim', '/info type:hoverboard name:UFO', '/info type:item name:Infinity Box', '/info type:about'],
+    usage: '/info type:<rot|hoverboard|item|spawnlocation|inventory|about> [name:<query>] [user:<id|username>]',
+    examples: ['/info type:rot', '/info type:rot name:Brr Brrr Patapim', '/info type:hoverboard name:UFO', '/info type:item name:Infinity Box', '/info type:inventory user:1559610713', '/info type:about'],
     notes: 'Omitting name returns a random entry for any type. Use autocomplete to find a specific one.',
   },
   inventory: {
-    summary: 'Look up a player live inventory from indieun.com/cab.',
-    usage: '/inventory user:<Roblox UID>',
-    examples: ['/inventory user:1559610713'],
+    summary: 'Look up a player live inventory from indieun.com/cab (available via `/info type:inventory`).',
+    usage: '/info type:inventory user:<Roblox UID>',
+    examples: ['/info type:inventory user:1559610713'],
     notes: 'Accepts either a numeric Roblox user ID or a username. The bot resolves usernames via the Roblox API.',
   },
   trade: {
@@ -130,7 +130,7 @@ function buildHelpOverviewEmbed() {
     .setColor(0x8b5cf6)
     .addFields(
       { name: '/info', value: HELP.info.summary, inline: false },
-      { name: '/inventory', value: HELP.inventory.summary, inline: false },
+      { name: '/info type:inventory', value: HELP.inventory.summary, inline: false },
       { name: '/trade', value: HELP.trade.summary, inline: false },
       { name: '/info type:spawnlocation', value: HELP.spawnlocation.summary, inline: false },
       { name: '/top', value: HELP.top.summary, inline: false },

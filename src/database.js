@@ -197,6 +197,13 @@ function addCatch(guildId, userId, rotName) {
     insertLog.run(g, u, r);
   });
   tx(guildId, userId, rotName);
+  try {
+    log.info(`DB: added catch ${rotName} for user ${userId} in guild ${guildId} -> ${DB_PATH}`);
+  } catch {}
+}
+
+function dbPath() {
+  return DB_PATH;
 }
 
 function getUserInventory(guildId, userId) {
@@ -280,4 +287,5 @@ module.exports = {
   getTopCatchers,
   getCatchStats,
   close,
+  dbPath,
 };

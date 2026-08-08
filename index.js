@@ -251,7 +251,11 @@ function createContext() {
 // ---------- Client ----------
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 // Discord.js v15 includes native Components V2 support; ensure you upgrade
@@ -313,29 +317,42 @@ client.on(Events.MessageCreate, async (message) => {
 
   const guildId = message.guild.id;
   const spawn = activeSpawns.get(guildId);
-  if (!spawn) return;
-  if (message.channelId !== spawn.channelId) return;
+  // If user typed a shortcut but there's no active spawn, log why.
+  if (!spawn) {
+    const maybe = message.content.trim().toLowerCase();
+    if (maybe === 'rot' || maybe === 'catch') {
+      log.info(`User ${message.author.tag} said '${maybe}' but no active spawn in guild ${guildId}`);
+    }
+    return;
+  }
+  if (message.channelId !== spawn.channelId) {
+    const maybe = message.content.trim().toLowerCase();
+    if (maybe === 'rot' || maybe === 'catch') {
+      log.info(`User ${message.author.tag} said '${maybe}' in channel ${message.channelId} but active spawn is in ${spawn.channelId}`);
+    }
+    return;
+  }
 
   const content = message.content.trim().toLowerCase();
   const rot = spawn.rot;
   const fullName = rot.FullName.toLowerCase();
   const shortName = (rot.ShortenedName || '').toLowerCase();
 
-  const isMatch =
-    content === fullName ||
-    content === shortName ||
-    content.startsWith(fullName) ||
-    (shortName && content.startsWith(shortName));
+  // More robust matching: exact, startsWith, contains, or reply shortcut ('rot'/'catch')
+  const isExact = content === fullName || (shortName && content === shortName);
+  const isStarts = content.startsWith(fullName) || (shortName && content.startsWith(shortName));
+  const isContains = content.includes(fullName) || (shortName && content.includes(shortName));
+  // Shortcut words: allow users to just say 'rot' or 'catch' in the spawn channel
+  const isReplyShortcut = content === 'rot' || content === 'catch';
+  const isMatch = isExact || isStarts || isContains || isReplyShortcut;
 
   if (!isMatch) return;
-
-  db.addCatch(guildId, message.author.id, rot.FullName);
 
   const em = require('./src/emojis').emojiFor(rot.FullName);
   const stars = data.rarityStars(rot.Rarity);
   const rarity = helpers.rarityLabel(rot.Rarity);
 
-  // Edit the original spawn embed to show it was caught
+  // Edit the original spawn embed to show it was caught (update UI first)
   const caughtEmbed = new EmbedBuilder()
     .setTitle(`${em} ${rot.FullName} was caught!`)
     .setDescription(`**${rarity} ${stars}**\n\n${data.flavorFor(rot)}\n\n🎉 **Caught by ${message.author.username}** (${message.author.tag})`)
@@ -344,7 +361,7 @@ client.on(Events.MessageCreate, async (message) => {
     .setFooter({ text: `Brainrot Bot • caught by ${message.author.tag}` })
     .setTimestamp();
 
-  // Edit the original spawn message to show caught state
+  // Edit the original spawn message to show caught state (attempt UI update first)
   if (spawn.messageId) {
     try {
       const spawnMsg = await message.channel.messages.fetch(spawn.messageId);
@@ -364,23 +381,27 @@ client.on(Events.MessageCreate, async (message) => {
       } else {
         await spawnMsg.edit({ embeds: [caughtEmbed], components: [] }).catch(() => {});
       }
-    } catch {
-      // Message may already be deleted; ignore.
+    } catch (err) {
+      log.warn('Failed to edit spawn message on typed catch:', err);
     }
   }
 
-  // Send ephemeral confirmation to the catcher
+  // Persist the catch (best-effort). Do this after updating UI so DB failures don't block visual feedback.
   try {
-    await message.reply({ 
-      content: `✅ You caught ${rot.FullName}!`, 
-      flags: MessageFlags.Ephemeral 
-    });
+    db.addCatch(guildId, message.author.id, rot.FullName);
   } catch (err) {
-    log.warn(`Failed to send catch confirmation: ${err.message}`);
+    log.error('Failed to persist catch to DB (typed):', err);
+  }
+
+  // Send a regular (non-ephemeral) confirmation to the catcher; ephemeral flags don't apply to message replies.
+  try {
+    await message.reply({ content: `✅ You caught ${rot.FullName}!` });
+  } catch (err) {
+    log.warn('Failed to send catch confirmation:', err);
   }
 
   activeSpawns.delete(guildId);
-  db.clearSpawn(guildId);
+  try { db.clearSpawn(guildId); } catch (err) { log.warn('Failed to clear spawn in DB (typed):', err); }
 
   log.info(`User ${message.author.tag} caught ${rot.FullName} in guild ${guildId}`);
 });
