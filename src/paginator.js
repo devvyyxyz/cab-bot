@@ -28,6 +28,20 @@ const NAV_BUTTONS = {
   pages:  { label: "Page", style: ButtonStyle.Secondary, disabled: true },
 };
 
+const activePaginatorByMessage = new Map();
+
+function getActivePaginator(messageId) {
+  return activePaginatorByMessage.get(messageId) || null;
+}
+
+function setActivePaginator(messageId, paginator) {
+  activePaginatorByMessage.set(messageId, paginator);
+}
+
+function deleteActivePaginator(messageId) {
+  activePaginatorByMessage.delete(messageId);
+}
+
 class Paginator {
   constructor(opts) {
     this.pages = opts.pages || [];
@@ -35,8 +49,11 @@ class Paginator {
     this.timeout = opts.timeout ?? 120000;
     this.userId = opts.userId;
     this.onPage = opts.onPage || null;
+    this.categoryRanges = opts.categoryRanges || null;
     this.currentPage = 0;
-    this._collector = null;
+    this._buttonCollector = null;
+    this._selectCollector = null;
+    this._ended = false;
     if (!this.pages.length) {
       throw new Error("Paginator requires at least one page");
     }
@@ -86,6 +103,40 @@ class Paginator {
     return { type: 1, components: disabledBtns };
   }
 
+  _buildDisabledSelectRow(actionRowJson) {
+    const selectComp = (actionRowJson.components || [])[0] || {};
+    const disabledOptions = (selectComp.options || []).map((opt) => ({
+      label: opt.label,
+      value: opt.value,
+      description: opt.description,
+      emoji: opt.emoji,
+      default: opt.default,
+    }));
+    return {
+      type: 1,
+      components: [
+        {
+          type: 3,
+          custom_id: selectComp.custom_id || actionRowJson.custom_id,
+          options: disabledOptions,
+          placeholder: selectComp.placeholder,
+          min_values: selectComp.min_values,
+          max_values: selectComp.max_values,
+          disabled: true,
+        },
+      ],
+    };
+  }
+
+  _getCurrentCategory() {
+    if (!this.categoryRanges) return null;
+    const page = this.currentPage;
+    for (const [cat, [start, end]] of Object.entries(this.categoryRanges)) {
+      if (page >= start && page <= end) return cat;
+    }
+    return null;
+  }
+
   _buildPayload() {
     if (this.mode === "embed") {
       const page = this.pages[this.currentPage];
@@ -116,22 +167,76 @@ class Paginator {
       await interaction.reply(this._buildPayload());
     }
     const message = await interaction.fetchReply();
+    setActivePaginator(message.id, this);
+    this._messageId = message.id;
     this._attachCollector(interaction, message);
     return message;
   }
 
   async _update(interaction, newIndex) {
     this.currentPage = Math.max(0, Math.min(this.pages.length - 1, newIndex));
-    await interaction.update(this._buildPayload());
+    try {
+      await interaction.update(this._buildPayload());
+    } catch (err) {
+      if (err && err.code === 10062) {
+        return;
+      }
+      throw err;
+    }
+  }
+
+  async _disable(interaction) {
+    if (this._ended) return;
+    this._ended = true;
+    try {
+      if (this.mode === 'components' && this._isContainerPage(this.pages[this.currentPage])) {
+        const page = this.pages[this.currentPage];
+        const json = page.toJSON();
+        const components = [...(json.components || [])];
+        const updated = components.map((c) => {
+          if (c.type === 1 && c.components && c.components[0] && c.components[0].type === 3) {
+            return this._buildDisabledSelectRow(c);
+          }
+          if (c.type === 1) return this._buildDisabledNavRow(c);
+          return c;
+        });
+        const container = new ContainerBuilder()
+          .setColor(json.accent_color ?? 0x000000)
+          .setSpoiler(json.spoiler || false)
+          .setComponents(updated);
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      } else if (this.mode === 'components') {
+        const row = new ActionRowBuilder();
+        for (const b of this._buildNavRow().components) {
+          row.addComponents(ButtonBuilder.from(b).setDisabled(true));
+        }
+        const payload = { components: [...(this.pages[this.currentPage] || []), row], flags: MessageFlags.IsComponentsV2 };
+        await interaction.editReply(payload);
+      } else {
+        const row = new ActionRowBuilder();
+        for (const b of this._buildNavRow().components) {
+          row.addComponents(ButtonBuilder.from(b).setDisabled(true));
+        }
+        const payload = { embeds: [this.pages[this.currentPage]], components: [row] };
+        await interaction.editReply(payload);
+      }
+    } catch {
+      // Message may have been deleted; ignore.
+    }
   }
 
   _attachCollector(interaction, message) {
-    this._collector = message.createMessageComponentCollector({
+    this._buttonCollector = message.createMessageComponentCollector({
       componentType: ComponentType.Button,
       time: this.timeout,
     });
 
-    this._collector.on("collect", async (i) => {
+    this._selectCollector = message.createMessageComponentCollector({
+      componentType: ComponentType.StringSelect,
+      time: this.timeout,
+    });
+
+    const handleInteraction = async (i) => {
       if (this.userId && i.user.id !== this.userId) {
         await i.reply({
           content: "Not your paginator, fr. Run the command yourself.",
@@ -139,59 +244,53 @@ class Paginator {
         });
         return;
       }
-      const action = i.customId.replace("pg:", "");
-      switch (action) {
-        case "first": await this._update(i, 0); break;
-        case "prev":  await this._update(i, this.currentPage - 1); break;
-        case "next":  await this._update(i, this.currentPage + 1); break;
-        case "last":  await this._update(i, this.pages.length - 1); break;
+      if (i.componentType === ComponentType.Button) {
+        const action = i.customId.replace("pg:", "");
+        let newPage = this.currentPage;
+        switch (action) {
+          case "first": newPage = 0; break;
+          case "prev": newPage = this.currentPage - 1; break;
+          case "next": newPage = this.currentPage + 1; break;
+          case "last": newPage = this.pages.length - 1; break;
+        }
+        if (this.categoryRanges) {
+          const cat = this._getCurrentCategory();
+          if (cat && this.categoryRanges[cat]) {
+            const [start, end] = this.categoryRanges[cat];
+            newPage = Math.max(start, Math.min(end, newPage));
+          }
+        }
+        await this._update(i, newPage);
+      } else if (i.componentType === ComponentType.StringSelect) {
+        const value = i.values[0];
+        if (this.categoryRanges && this.categoryRanges[value]) {
+          const [start] = this.categoryRanges[value];
+          await this._update(i, start);
+        }
       }
+    };
+
+    this._buttonCollector.on("collect", handleInteraction);
+    this._selectCollector.on("collect", handleInteraction);
+
+    this._buttonCollector.on("end", async () => {
+      this._selectCollector.stop();
+      await this._disable(interaction);
+      if (this._messageId) deleteActivePaginator(this._messageId);
     });
 
-    this._collector.on("end", async () => {
-      try {
-        if (this.mode === 'components' && this._isContainerPage(this.pages[this.currentPage])) {
-          const page = this.pages[this.currentPage];
-          const nav = this._buildNavRow();
-          const navJson = typeof nav.toJSON === 'function' ? nav.toJSON() : nav;
-          const disabledNav = this._buildDisabledNavRow(navJson);
-          const json = page.toJSON();
-          const components = [...(json.components || [])];
-          const navIdx = components.findIndex(c => c.type === 1);
-          if (navIdx >= 0) {
-            components[navIdx] = disabledNav;
-          } else {
-            components.push(disabledNav);
-          }
-          const container = new ContainerBuilder()
-            .setColor(json.accent_color ?? 0x000000)
-            .setSpoiler(json.spoiler || false)
-            .setComponents(components);
-          await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
-        } else if (this.mode === 'components') {
-          const row = new ActionRowBuilder();
-          for (const b of this._buildNavRow().components) {
-            row.addComponents(ButtonBuilder.from(b).setDisabled(true));
-          }
-          const payload = { components: [...(this.pages[this.currentPage] || []), row], flags: MessageFlags.IsComponentsV2 };
-          await interaction.editReply(payload);
-        } else {
-          const row = new ActionRowBuilder();
-          for (const b of this._buildNavRow().components) {
-            row.addComponents(ButtonBuilder.from(b).setDisabled(true));
-          }
-          const payload = { embeds: [this.pages[this.currentPage]], components: [row] };
-          await interaction.editReply(payload);
-        }
-      } catch {
-        // Message may have been deleted; ignore.
-      }
+    this._selectCollector.on("end", async () => {
+      this._buttonCollector.stop();
+      await this._disable(interaction);
+      if (this._messageId) deleteActivePaginator(this._messageId);
     });
   }
 
   stop() {
-    if (this._collector) this._collector.stop();
+    if (this._buttonCollector) this._buttonCollector.stop();
+    if (this._selectCollector) this._selectCollector.stop();
+    if (this._messageId) deleteActivePaginator(this._messageId);
   }
 }
 
-module.exports = { Paginator };
+module.exports = { Paginator, getActivePaginator, setActivePaginator, deleteActivePaginator };

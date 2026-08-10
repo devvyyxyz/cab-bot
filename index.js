@@ -17,6 +17,7 @@ const data = require('./src/data');
 const helpers = require('./src/helpers');
 const embeds = require('./src/embeds');
 const handlers = require('./src/handlers');
+const { Paginator, getActivePaginator } = require('./src/paginator');
 
 // ---------- Constants ----------
 
@@ -428,6 +429,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       return;
+    }
+
+    if (interaction.isStringSelectMenu()) {
+      const id = interaction.customId;
+      if (id === 'inv:category') {
+        const paginator = getActivePaginator(interaction.message.id);
+        if (paginator) {
+          const value = interaction.values[0];
+          if (paginator.categoryRanges && paginator.categoryRanges[value]) {
+            const [start] = paginator.categoryRanges[value];
+            await paginator._update(interaction, start);
+            return;
+          }
+        }
+      }
     }
 
     const ctx = createContext();

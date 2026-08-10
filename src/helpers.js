@@ -23,7 +23,7 @@ const {
 } = require('./data');
 
 const { SeparatorSpacingSize, ButtonStyle } = require('discord.js');
-const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder, V2ActionRowBuilder: ActionRowBuilder } = require('v2componentsbuilder');
+const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder, V2ActionRowBuilder: ActionRowBuilder, V2StringSelectBuilder: StringSelectBuilder } = require('v2componentsbuilder');
 const { execFile } = require('child_process');
 const emojis = require('./emojis');
 
@@ -472,11 +472,11 @@ function buildInventoryPages(userId, inv) {
     const pcSorted = [...pc].sort((a, b) => (b.IV ?? 0) - (a.IV ?? 0));
     const topIV = pcSorted[0];
     const pageSize = 8;
-    const totalPages = Math.ceil(pcSorted.length / pageSize);
-    for (let p = 0; p < totalPages; p++) {
+    const pcTotalPages = Math.ceil(pcSorted.length / pageSize);
+    for (let p = 0; p < pcTotalPages; p++) {
       const slice = pcSorted.slice(p * pageSize, (p + 1) * pageSize);
       const pageComponents = [];
-      pageComponents.push(new TextDisplayBuilder().setContent(`# 💻 PC — page ${p + 1}/${totalPages} (${pc.length} total)
+      pageComponents.push(new TextDisplayBuilder().setContent(`# 💻 PC — page ${p + 1}/${pcTotalPages} (${pc.length} total)
 ` + (topIV ? `**Highest IV:** ${emojis.emojiFor(topIV.Species || '')} ${topIV.Nickname || topIV.Species} at ${Math.round((topIV.IV ?? 0) * 100)}%` : '')));
       const urls = slice.map((e) => {
         const rot = rotBySpecies.get((e.Species || '').toLowerCase());
@@ -526,6 +526,8 @@ function buildInventoryEmbeds(userId, inv) {
   const totalItems = bagEntries.reduce((s, [, q]) => s + q, 0);
 
   const text = (content) => new TextDisplayBuilder().setContent(content);
+  const categoryRanges = {};
+  let pageIdx = 0;
   const section = (button, ...contents) => {
     const s = new SectionBuilder()
       .setComponents(contents.map(text))
@@ -539,8 +541,21 @@ function buildInventoryEmbeds(userId, inv) {
     return new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel(label).setEmoji(em).setCustomId(`inv:${label}`);
   };
 
-  function withNav(container, pageIndex, totalPages) {
+  function withNav(container, pageIndex, totalPages, category) {
     const json = container.toJSON();
+    const selectComponent = new StringSelectBuilder()
+      .setCustomId('inv:category')
+      .setPlaceholder('Switch category...')
+      .setOptions(
+        [
+          { label: 'Team', value: 'team', emoji: { name: '⚔️' } },
+          { label: 'PC', value: 'pc', emoji: { name: '💻' } },
+          { label: 'Hoverboards', value: 'hoverboards', emoji: { name: '🛹' } },
+          { label: 'Bag', value: 'bag', emoji: safeEmoji('<:cardboard_box:1535487893722763304>') },
+        ].map((opt) => ({ ...opt, default: category === opt.value }))
+      )
+      .toJSON();
+    const selectRow = new ActionRowBuilder().setComponents([selectComponent]);
     const navRow = new ActionRowBuilder().setComponents([
       new ButtonBuilder().setCustomId('pg:first').setLabel('⏪').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 1),
       new ButtonBuilder().setCustomId('pg:prev').setLabel('◀️').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 1),
@@ -548,11 +563,12 @@ function buildInventoryEmbeds(userId, inv) {
       new ButtonBuilder().setCustomId('pg:next').setLabel('▶️').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === totalPages),
       new ButtonBuilder().setCustomId('pg:last').setLabel('⏩').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === totalPages),
     ]);
+    const selectJson = typeof selectRow.toJSON === 'function' ? selectRow.toJSON() : selectRow;
     const navJson = typeof navRow.toJSON === 'function' ? navRow.toJSON() : navRow;
     return new ContainerBuilder()
       .setColor(json.accent_color ?? 0x000000)
       .setSpoiler(json.spoiler || false)
-      .setComponents([...json.components, navJson]);
+      .setComponents([...json.components, selectJson, navJson]);
   }
 
   const pages = [];
@@ -561,10 +577,7 @@ function buildInventoryEmbeds(userId, inv) {
   const p1 = new ContainerBuilder()
     .setColor(0x8b5cf6)
     .setComponents([
-      section(
-        boardButton('Summary', '<:cardboard_box:1535487893722763304>'),
-        `<:cardboard_box:1535487893722763304> Inventory — ${userId}`,
-      ),
+      text(`<:cardboard_box:1535487893722763304> Inventory — ${userId}`),
       text(`**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`),
       divider(),
       text(`⚔️ Active Team (${team.length}/6)`),
@@ -578,15 +591,18 @@ function buildInventoryEmbeds(userId, inv) {
   } else {
     p1.setComponents([...p1.toJSON().components, text('(no active team)')]);
   }
-  pages.push(withNav(p1, 1, 4));
+  pages.push(withNav(p1, 1, 1, 'team'));
+  categoryRanges.team = [0, 0];
+  pageIdx++;
 
   // ---- Page 2: Hoverboards ----
-  const p2 = new ContainerBuilder()
-    .setColor(0x06b6d4)
-    .setComponents([
-      section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
-    ]);
   if (hoverboards.length > 0) {
+    const hoverStart = pageIdx;
+    const p2 = new ContainerBuilder()
+      .setColor(0x06b6d4)
+      .setComponents([
+        section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
+      ]);
     const lines = hoverboards.map((h, i) => {
       const meta = skinByName.get((h.Name || '').toLowerCase());
       const spd = meta ? meta.Speed : '?';
@@ -594,23 +610,24 @@ function buildInventoryEmbeds(userId, inv) {
       return `${i + 1}. ${em} **${h.Name}** — speed ${spd}`.trim();
     }).join('\n');
     p2.setComponents([...p2.toJSON().components, text(lines)]);
-  } else {
-    p2.setComponents([...p2.toJSON().components, text('(no hoverboards owned)')]);
+    pages.push(withNav(p2, 1, 1, 'hoverboards'));
+    categoryRanges.hoverboards = [hoverStart, hoverStart];
+    pageIdx++;
   }
-  pages.push(withNav(p2, 2, 4));
 
   // ---- Pages 3+: PC (8 per page) ----
   if (pc.length > 0) {
+    const pcStart = pageIdx;
     const pcSorted = [...pc].sort((a, b) => (b.IV ?? 0) - (a.IV ?? 0));
     const topIV = pcSorted[0];
     const pageSize = 8;
-    const totalPages = Math.ceil(pcSorted.length / pageSize);
-    for (let p = 0; p < totalPages; p++) {
+    const pcTotalPages = Math.ceil(pcSorted.length / pageSize);
+    for (let p = 0; p < pcTotalPages; p++) {
       const slice = pcSorted.slice(p * pageSize, (p + 1) * pageSize);
       const c = new ContainerBuilder()
         .setColor(0x22c55e)
         .setComponents([
-          section(boardButton('pc', '💻'), `# 💻 PC — page ${p + 1}/${totalPages} (${pc.length} total)` + (topIV ? `\n**Highest IV:** ${emojis.emojiFor(topIV.Species || '')} ${topIV.Nickname || topIV.Species} at ${Math.round((topIV.IV ?? 0) * 100)}%` : '')),
+          section(boardButton('pc', '💻'), `# 💻 PC — page ${p + 1}/${pcTotalPages} (${pc.length} total)` + (topIV ? `\n**Highest IV:** ${emojis.emojiFor(topIV.Species || '')} ${topIV.Nickname || topIV.Species} at ${Math.round((topIV.IV ?? 0) * 100)}%` : '')),
         ]);
       const desc = slice
         .map((e, i) => {
@@ -621,11 +638,14 @@ function buildInventoryEmbeds(userId, inv) {
         })
         .join('\n\n');
       c.setComponents([...c.toJSON().components, text(desc)]);
-      pages.push(withNav(c, 3 + p, 3 + totalPages - 1));
+      pages.push(withNav(c, p + 1, pcTotalPages, 'pc'));
     }
+    categoryRanges.pc = [pcStart, pcStart + pcTotalPages - 1];
+    pageIdx += pcTotalPages;
   }
 
   // ---- Last page: Bag ----
+  const bagStart = pageIdx;
   const pBag = new ContainerBuilder()
     .setColor(0xf59e0b)
     .setComponents([
@@ -637,10 +657,11 @@ function buildInventoryEmbeds(userId, inv) {
   } else {
     pBag.setComponents([...pBag.toJSON().components, text('(empty bag)')]);
   }
-  const totalPageCount = pages.length + 1;
-  pages.push(withNav(pBag, totalPageCount, totalPageCount));
+  pages.push(withNav(pBag, 1, 1, 'bag'));
+  categoryRanges.bag = [bagStart, bagStart];
+  pageIdx++;
 
-  return pages;
+  return { pages, categoryRanges };
 }
 
 // ---------- Tierlist ----------

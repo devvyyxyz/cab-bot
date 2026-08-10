@@ -87,8 +87,8 @@ async function handleInfo(interaction, ctx) {
       await interaction.editReply({ content: `Player \`${userId}\` has an empty inventory, fr.` });
       return;
     }
-    const pages = buildInventoryEmbeds(userId, inv);
-    const paginator = new Paginator({ pages, mode: 'components', userId: interaction.user.id, timeout: 120000 });
+    const { pages, categoryRanges } = buildInventoryEmbeds(userId, inv);
+    const paginator = new Paginator({ pages, categoryRanges, mode: 'components', userId: interaction.user.id, timeout: 120000 });
     await paginator.send(interaction);
     return;
   }
