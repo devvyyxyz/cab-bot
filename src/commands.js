@@ -37,6 +37,12 @@ const commands = [
             .setRequired(false)
             .setAutocomplete(true)
         )
+        .addBooleanOption((opt) =>
+          opt
+            .setName("random")
+            .setDescription("Return a random hoverboard instead of looking up a specific name.")
+            .setRequired(false)
+        )
     )
     .addSubcommand((sub) =>
       sub
@@ -74,6 +80,12 @@ const commands = [
             .setDescription("Zone number.")
             .setRequired(false)
             .setMinValue(1)
+        )
+        .addBooleanOption((opt) =>
+          opt
+            .setName("random")
+            .setDescription("Return a random spawn location instead of using world/zone.")
+            .setRequired(false)
         )
     )
     .addSubcommand((sub) =>

@@ -32,7 +32,8 @@ async function handleInfo(interaction, ctx) {
   }
 
   if (sub === 'hoverboard') {
-    const skin = query ? findSkin(query) : pick(ctx.data.skins);
+    const random = interaction.options.getBoolean('random');
+    const skin = (random || !query) ? pick(ctx.data.skins) : findSkin(query);
     if (!skin) {
       await interaction.reply({ content: `Couldn't find a hoverboard matching \`${query}\`, fr. Try the autocomplete.`, flags: MessageFlags.Ephemeral });
       return;
@@ -93,6 +94,12 @@ async function handleInfo(interaction, ctx) {
   }
 
   if (sub === 'spawn') {
+    const random = interaction.options.getBoolean('random');
+    if (random) {
+      await interaction.reply({ embeds: [buildRandomSpawnEmbed()] });
+      return;
+    }
+
     const world = interaction.options.getInteger('world');
     const zone = interaction.options.getInteger('zone');
 

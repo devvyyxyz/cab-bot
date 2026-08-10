@@ -66,9 +66,9 @@ const HELP = {
   },
   spawn: {
     summary: 'Show brainrots that spawn at a given world/zone, or a random spawn location.',
-    usage: '/info spawn [world:<1|2>] [zone:<1-3>]',
-    examples: ['/info spawn', '/info spawn world:2 zone:3', '/info spawn world:1'],
-    notes: 'If you omit both world and zone, the bot picks a random spawn location. If you provide world but not zone (or vice versa), it picks a random matching location.',
+    usage: '/info spawn [world:<1|2>] [zone:<1-3>] [random]',
+    examples: ['/info spawn', '/info spawn world:2 zone:3', '/info spawn random'],
+    notes: 'If you omit both world and zone, the bot picks a random spawn location. If you provide world but not zone (or vice versa), it picks a random matching location. Use `random` to force a random spawn.',
   },
   top: {
     summary: 'Show the top N brainrots by a chosen stat.',
@@ -229,9 +229,9 @@ function buildAboutEmbed() {
         name: 'Commands',
         value:
           '`/info brainrot [name:<x>]` — random or specific brainrot\n' +
-          '`/info hoverboard [name:<x>]` — random or specific hoverboard skin\n' +
-          '`/info item [name:<x>]` — random or specific bag item\n' +
-          '`/info spawn [world] [zone]` — brainrots at a location\n' +
+          '`/info hoverboard [name:<x>] [random]` — random or specific hoverboard skin\n' +
+          '`/info item [name:<x>] [random]` — random or specific bag item\n' +
+          '`/info spawn [world] [zone] [random]` — brainrots at a location\n' +
           '`/info inventory user:<id>` — live player inventory\n' +
           '`/help [command:<x>]` — general help or per-command help\n' +
           '`/trade calculate a:<x> [a_iv] [a_level] b:<x> [b_iv] [b_level]` — trade fairness calculator\n' +
