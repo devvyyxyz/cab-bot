@@ -1,7 +1,7 @@
 module.exports = {
   ping: require('./ping'),
   info: require('./info'),
-  inventory: require('./inventory_local'),
+  inventory: require('./inventory').handleInventory,
   tierlist: require('./inventory').handleTierlist,
   trade: require('./trade'),
   top: require('./game').handleTop,
@@ -11,4 +11,5 @@ module.exports = {
   settings: require('./settings'),
   admin: require('./admin'),
   game: require('./game').handleGame,
+  battle: require('./battle'),
 };

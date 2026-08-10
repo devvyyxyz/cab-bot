@@ -96,7 +96,7 @@ const HELP = {
   },
   help: {
     summary: 'Show bot help, optionally for a specific command.',
-    usage: '/help [command:<info|inventory|trade|spawn|top|daily|guess|tierlist|settings|help>]',
+    usage: '/help [command:<info|inventory|trade|spawn|top|daily|guess|tierlist|settings|battle|help>]',
     examples: ['/help', '/help command:trade'],
     notes: 'With no argument, shows all commands with a one-line summary.',
   },
@@ -136,6 +136,12 @@ const HELP = {
     examples: ['/game dice_roll', '/game dice_roll count:4'],
     notes: 'Defaults to 1 die. You can roll up to 10 dice at once.',
   },
+  battle: {
+    summary: 'Show the battle map for the current zone.',
+    usage: '/battle',
+    examples: ['/battle'],
+    notes: 'Sends the battle map image for the current zone.',
+  },
 };
 
 function buildHelpOverviewEmbed() {
@@ -158,7 +164,8 @@ function buildHelpOverviewEmbed() {
       { name: '/admin forcespawn', value: HELP.forcespawn.summary, inline: false },
       { name: '/game 8ball', value: HELP['game 8ball'].summary, inline: false },
       { name: '/game blackjack', value: HELP['game blackjack'].summary, inline: false },
-      { name: '/game dice_roll', value: HELP['game dice_roll'].summary, inline: false }
+      { name: '/game dice_roll', value: HELP['game dice_roll'].summary, inline: false },
+      { name: '/battle', value: HELP.battle.summary, inline: false }
     )
     .setFooter({ text: 'Use /help command:<name> for detailed help on any command.' })
     .setTimestamp();

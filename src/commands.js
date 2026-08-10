@@ -209,7 +209,8 @@ const commands = [
           { name: "admin forcespawn", value: "forcespawn" },
           { name: "game 8ball", value: "8ball" },
           { name: "game blackjack", value: "blackjack" },
-          { name: "game dice_roll", value: "dice_roll" }
+          { name: "game dice_roll", value: "dice_roll" },
+          { name: "battle", value: "battle" }
         )
     ),
 
@@ -342,6 +343,11 @@ const commands = [
             .setMaxValue(10)
         )
     ),
+
+  // ---------------------------------------------------------------- /battle
+  new SlashCommandBuilder()
+    .setName("battle")
+    .setDescription("Show the battle map for the current zone."),
 ].map((cmd) => cmd.toJSON());
 
 module.exports = commands;
