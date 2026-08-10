@@ -1,5 +1,6 @@
 // src/handlers/help.js
 
+const { MessageFlags } = require('discord.js');
 const { buildHelpOverviewEmbed, buildHelpDetailEmbed } = require('../embeds');
 
 async function handleHelp(interaction, ctx) {

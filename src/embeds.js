@@ -118,6 +118,24 @@ const HELP = {
     examples: ['/ping'],
     notes: 'Returns the round-trip latency and Discord API ping.',
   },
+  'game 8ball': {
+    summary: 'Ask the Magic 8-Ball a yes/no question.',
+    usage: '/game 8ball question:<your question>',
+    examples: ['/game 8ball question:Will I catch a legendary brainrot today?'],
+    notes: 'Returns a random mystical answer from the 8-Ball.',
+  },
+  'game blackjack': {
+    summary: 'Play a simplified game of blackjack against the system.',
+    usage: '/game blackjack',
+    examples: ['/game blackjack'],
+    notes: 'Try to get as close to 21 as possible without going over.',
+  },
+  'game dice_roll': {
+    summary: 'Roll one or more dice.',
+    usage: '/game dice_roll [count:<number>]',
+    examples: ['/game dice_roll', '/game dice_roll count:4'],
+    notes: 'Defaults to 1 die. You can roll up to 10 dice at once.',
+  },
 };
 
 function buildHelpOverviewEmbed() {
