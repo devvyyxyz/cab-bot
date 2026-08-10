@@ -1,19 +1,17 @@
+version: "3.9"
+
 services:
-  brainrot-bot:
-    build: .
+  bot:
+    build:
+      context: https://github.com/devvyyxyz/cab-bot.git
+      dockerfile: Dockerfile
+    container_name: cab-bot
+    restart: unless-stopped
     env_file:
       - .env
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data
     ports:
       - "3000:3000"
-    volumes:
-      - data:/app/data
-      - tierlists:/app/tierlists
-      - ./.env.development:/app/.env.development:ro
-      - ./.env.production:/app/.env.production:ro
-    restart: unless-stopped
-
-volumes:
-  data:
-  tierlists:
