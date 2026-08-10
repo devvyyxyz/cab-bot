@@ -527,18 +527,18 @@ function buildInventoryEmbeds(userId, inv) {
   // ---- Page 1: Overview + Team ----
   const p1 = new ContainerBuilder().setColor(0x8b5cf6).setComponents([
     section(boardButton('Summary', '🎒'), `🎒 Inventory — ${userId}`),
-    new SectionBuilder().setComponents([text(`**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`)]),
+    section(boardButton('info', 'ℹ️'), `**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`),
     divider(),
-    new SectionBuilder().setComponents([text(`⚔️ Active Team (${team.length}/6)`)]),
+    section(boardButton('info', 'ℹ️'), `⚔️ Active Team (${team.length}/6)`),
   ]);
   if (team.length > 0) {
     const lines = team.slice(0, 6).map((t, i) => {
       const m = (t.Moveset || []).join(', ') || 'none';
       return `${i + 1}. ${brainrotSummary(t)}\nMoves: ${m}`;
     }).join('\n');
-    p1.setComponents([...(p1.setComponents ? [] : []), new SectionBuilder().setComponents([text(lines)])]);
+    p1.setComponents([...(p1.setComponents ? [] : []), section(boardButton('info', 'ℹ️'), lines)]);
   } else {
-    p1.setComponents([...(p1.setComponents ? [] : []), new SectionBuilder().setComponents([text('(no active team)')])]);
+    p1.setComponents([...(p1.setComponents ? [] : []), section(boardButton('info', 'ℹ️'), '(no active team)')]);
   }
   pages.push([p1]);
 
@@ -553,11 +553,11 @@ function buildInventoryEmbeds(userId, inv) {
       const em = emojis.emojiFor(h.Name || '');
       return `${i + 1}. ${em} **${h.Name}** — speed ${spd}`.trim();
     }).join('\n');
-      p2.setComponents([new SectionBuilder().setComponents([text(lines)])]);
+      p2.setComponents([section(boardButton('info', 'ℹ️'), lines)]);
   } else {
     p2.setComponents([
       section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
-      new SectionBuilder().setComponents([text('(no hoverboards owned)')]),
+      section(boardButton('info', 'ℹ️'), '(no hoverboards owned)'),
     ]);
   }
   pages.push([p2]);
@@ -586,7 +586,7 @@ function buildInventoryEmbeds(userId, inv) {
         .join('\n\n');
       c.setComponents([
         section(boardButton('pc', '💻'), header),
-        new SectionBuilder().setComponents([text(desc)]),
+        section(boardButton('info', 'ℹ️'), desc),
       ]);
       pages.push([c]);
     }
@@ -600,12 +600,12 @@ function buildInventoryEmbeds(userId, inv) {
     const bagStr = bagEntries.map(([name, qty]) => `${qty.toString().padStart(4)} × ${name}`).join('\n');
       pBag.setComponents([
         section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
-        new SectionBuilder().setComponents([text('```\n' + bagStr + '\n```')]),
+        section(boardButton('info', 'ℹ️'), '```\n' + bagStr + '\n```'),
       ]);
   } else {
       pBag.setComponents([
         section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
-        new SectionBuilder().setComponents([text('(empty bag)')]),
+        section(boardButton('info', 'ℹ️'), '(empty bag)'),
       ]);
   }
   pages.push([pBag]);

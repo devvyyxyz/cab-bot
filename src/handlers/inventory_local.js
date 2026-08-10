@@ -36,15 +36,17 @@ async function handleInventoryLocal(interaction, ctx) {
   const pages = [];
   for (let i = 0; i < lines.length; i += perPage) {
     const chunk = lines.slice(i, i + perPage);
-    // Try Components V2 page: a single Container with a header section and one section with lines
-    const headerSection = new SectionBuilder().setComponents([
-      new TextDisplayBuilder().setContent(`🎒 Caught inventory — ${interaction.guild.name}`),
-      new TextDisplayBuilder().setContent(`User: ${interaction.user.tag} (${targetUser})`),
-    ]);
+    const headerSection = new SectionBuilder()
+      .setComponents([
+        new TextDisplayBuilder().setContent(`🎒 Caught inventory — ${interaction.guild.name}`),
+        new TextDisplayBuilder().setContent(`User: ${interaction.user.tag} (${targetUser})`),
+      ])
+      .setAccessory(new (require('v2componentsbuilder').V2ButtonBuilder)().setStyle(2).setLabel('Info').setCustomId('inv:header').setDisabled(true));
 
-    // Combine the chunk lines into a single TextDisplay to obey Section limits (1-3 text displays)
     const combined = chunk.map((item) => `${item.emoji} ${item.name} — x${item.count}`).join('\n');
-    const contentSection = new SectionBuilder().setComponents([new TextDisplayBuilder().setContent(combined)]);
+    const contentSection = new SectionBuilder()
+      .setComponents([new TextDisplayBuilder().setContent(combined)])
+      .setAccessory(new (require('v2componentsbuilder').V2ButtonBuilder)().setStyle(2).setLabel('Items').setCustomId('inv:items').setDisabled(true));
 
     const container = new ContainerBuilder().setColor(0x8b5cf6).setComponents([
       headerSection,
