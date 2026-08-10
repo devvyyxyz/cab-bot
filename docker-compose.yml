@@ -1,6 +1,6 @@
 services:
   bot:
-    image: ghcr.io/devvyyxyz/cab-bot:latest
+    mage: ghcr.io/devvyyxyz/cab-bot:latest
     pull_policy: always
     build:
       context: .
