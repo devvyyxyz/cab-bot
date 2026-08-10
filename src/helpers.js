@@ -410,7 +410,7 @@ function buildInventoryPages(userId, inv) {
   }
 
   const page1 = [];
-  page1.push(new TextDisplayBuilder().setContent(`# 🎒 Inventory for ${userId}
+  page1.push(new TextDisplayBuilder().setContent(`# <:cardboard_box:1535487893722763304> Inventory for ${userId}
 ` + `Live snapshot from \`indieun.com/cab\`. ` + `**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • **${bagCount}** item types (**${totalItems}** total)`));
 
   if (team.length > 0) {
@@ -481,7 +481,7 @@ function buildInventoryPages(userId, inv) {
   }
 
   const bagPage = [];
-  bagPage.push(new TextDisplayBuilder().setContent(`# 🎒 Bag (${bagCount} types, ${totalItems} total)`));
+  bagPage.push(new TextDisplayBuilder().setContent(`# <:cardboard_box:1535487893722763304> Bag (${bagCount} types, ${totalItems} total)`));
   if (bagEntries.length > 0) {
     const urls = bagEntries.slice(0, 10).map(([name]) => {
       const item = itemByName.get(name.toLowerCase());
@@ -547,8 +547,8 @@ function buildInventoryEmbeds(userId, inv) {
     .setColor(0x8b5cf6)
     .setComponents([
       section(
-        boardButton('Summary', '🎒'),
-        `🎒 Inventory — ${userId}`,
+        boardButton('Summary', '<:cardboard_box:1535487893722763304>'),
+        `<:cardboard_box:1535487893722763304> Inventory — ${userId}`,
       ),
       text(`**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`),
       divider(),
@@ -614,7 +614,7 @@ function buildInventoryEmbeds(userId, inv) {
   const pBag = new ContainerBuilder()
     .setColor(0xf59e0b)
     .setComponents([
-      section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
+      section(boardButton('bag', '<:cardboard_box:1535487893722763304>'), `<:cardboard_box:1535487893722763304> Bag (${bagCount} types, ${totalItems} total)`),
     ]);
   if (bagEntries.length > 0) {
     const bagStr = bagEntries.map(([name, qty]) => `${qty.toString().padStart(4)} × ${name}`).join('\n');

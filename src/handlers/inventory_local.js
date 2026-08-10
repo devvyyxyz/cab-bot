@@ -45,7 +45,7 @@ async function handleInventoryLocal(interaction, ctx) {
     const headerThumb = new ThumbnailBuilder().setURL('https://cdn.discordapp.com/emojis/1535487893722763304.webp?size=240');
     const headerSection = new SectionBuilder()
       .setComponents([
-        new TextDisplayBuilder().setContent(`🎒 Inventory (@${targetUser})`),
+        new TextDisplayBuilder().setContent(`<:cardboard_box:1535487893722763304> Inventory (@${targetUser})`),
         new TextDisplayBuilder().setContent(`${totalRots} total rots\n${uniqueRots} unique rots`),
       ])
       .setAccessory(headerThumb);
