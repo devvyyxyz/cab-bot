@@ -23,7 +23,7 @@ const {
 } = require('./data');
 
 const { SeparatorSpacingSize, ButtonStyle } = require('discord.js');
-const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder, V2ActionRowBuilder: ActionRowBuilder, V2StringSelectBuilder: StringSelectBuilder } = require('v2componentsbuilder');
+const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder, V2ActionRowBuilder: ActionRowBuilder, V2StringSelectBuilder: StringSelectBuilder, V2ThumbnailBuilder: ThumbnailBuilder } = require('v2componentsbuilder');
 const { execFile } = require('child_process');
 const emojis = require('./emojis');
 
@@ -574,53 +574,68 @@ function buildInventoryEmbeds(userId, inv) {
   const pages = [];
 
   // ---- Page 1: Overview + Team ----
-  const p1 = new ContainerBuilder()
-    .setColor(0x8b5cf6)
-    .setComponents([
-      text(`<:cardboard_box:1535487893722763304> Inventory — ${userId}`),
-      text(`**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`),
-      divider(),
-      text(`⚔️ Active Team (${team.length}/6)`),
-    ]);
-  if (team.length > 0) {
-    const lines = team.slice(0, 6).map((t, i) => {
-      const m = (t.Moveset || []).join(', ') || 'none';
-      return `${i + 1}. ${brainrotSummary(t)}\nMoves: ${m}`;
-    }).join('\n');
-    p1.setComponents([...p1.toJSON().components, text(lines)]);
-  } else {
-    p1.setComponents([...p1.toJSON().components, text('(no active team)')]);
+  const teamTotalPages = Math.max(1, Math.ceil(team.length / 3));
+  for (let tPage = 0; tPage < teamTotalPages; tPage++) {
+    const slice = team.slice(tPage * 3, (tPage + 1) * 3);
+    const tp = new ContainerBuilder()
+      .setColor(0x8b5cf6)
+      .setComponents([
+        text(`<:cardboard_box:1535487893722763304> Inventory — ${userId}\n**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`),
+        divider(),
+        text(`⚔️ Active Team (${team.length}/6) — page ${tPage + 1}/${teamTotalPages}`),
+      ]);
+    if (slice.length > 0) {
+      const entries = slice.map((t) => {
+        const rot = rotBySpecies.get((t.Species || '').toLowerCase());
+        const iconUrl = rot ? `${ICON_BASE}/${rot.Icon}` : null;
+        const moves = (t.Moveset || []).join(', ') || 'none';
+        const label = `${t.Nickname || t.Species} — Lvl ${t.Level ?? '?'} • IV ${Math.round((t.IV ?? 0) * 100)}%`;
+        const boxEmoji = t.Box ? emojis.emojiFor(t.Box) : '';
+        const accessory = iconUrl ? new ThumbnailBuilder().setURL(iconUrl) : null;
+        const content = new TextDisplayBuilder().setContent(`**${label}**\nMoves: ${moves}${boxEmoji ? ` ${boxEmoji}` : ''}`);
+        if (accessory) {
+          return new SectionBuilder().setComponents([content]).setAccessory(accessory);
+        }
+        return content;
+      });
+      tp.setComponents([...tp.toJSON().components, ...entries]);
+    } else {
+      tp.setComponents([...tp.toJSON().components, text('(no active team)')]);
+    }
+    pages.push(withNav(tp, tPage + 1, teamTotalPages, 'team'));
   }
-  pages.push(withNav(p1, 1, 1, 'team'));
-  categoryRanges.team = [0, 0];
-  pageIdx++;
+  categoryRanges.team = [0, teamTotalPages - 1];
+  pageIdx += teamTotalPages;
 
   // ---- Page 2: Hoverboards ----
   if (hoverboards.length > 0) {
     const hoverStart = pageIdx;
-    const p2 = new ContainerBuilder()
-      .setColor(0x06b6d4)
-      .setComponents([
-        section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
-      ]);
-    const lines = hoverboards.map((h, i) => {
-      const meta = skinByName.get((h.Name || '').toLowerCase());
-      const spd = meta ? meta.Speed : '?';
-      const em = emojis.emojiFor(h.Name || '');
-      return `${i + 1}. ${em} **${h.Name}** — speed ${spd}`.trim();
-    }).join('\n');
-    p2.setComponents([...p2.toJSON().components, text(lines)]);
-    pages.push(withNav(p2, 1, 1, 'hoverboards'));
-    categoryRanges.hoverboards = [hoverStart, hoverStart];
-    pageIdx++;
+    const hoverTotalPages = Math.ceil(hoverboards.length / 4);
+    for (let h = 0; h < hoverTotalPages; h++) {
+      const slice = hoverboards.slice(h * 4, (h + 1) * 4);
+      const hp = new ContainerBuilder()
+        .setColor(0x06b6d4)
+        .setComponents([
+          section(boardButton('boards', '🛹'), `🛹 Hoverboards — page ${h + 1}/${hoverTotalPages}`),
+        ]);
+      const entries = slice.map((hb) => {
+        const meta = skinByName.get((hb.Name || '').toLowerCase());
+        const spd = meta ? meta.Speed : '?';
+        return new TextDisplayBuilder().setContent(`**${hb.Name}** — speed ${spd}`);
+      });
+      hp.setComponents([...hp.toJSON().components, ...entries]);
+      pages.push(withNav(hp, h + 1, hoverTotalPages, 'hoverboards'));
+    }
+    categoryRanges.hoverboards = [hoverStart, hoverStart + hoverTotalPages - 1];
+    pageIdx += hoverTotalPages;
   }
 
-  // ---- Pages 3+: PC (8 per page) ----
+  // ---- Pages 3+: PC (5 per page) ----
   if (pc.length > 0) {
     const pcStart = pageIdx;
     const pcSorted = [...pc].sort((a, b) => (b.IV ?? 0) - (a.IV ?? 0));
     const topIV = pcSorted[0];
-    const pageSize = 8;
+    const pageSize = 5;
     const pcTotalPages = Math.ceil(pcSorted.length / pageSize);
     for (let p = 0; p < pcTotalPages; p++) {
       const slice = pcSorted.slice(p * pageSize, (p + 1) * pageSize);
@@ -629,15 +644,20 @@ function buildInventoryEmbeds(userId, inv) {
         .setComponents([
           section(boardButton('pc', '💻'), `# 💻 PC — page ${p + 1}/${pcTotalPages} (${pc.length} total)` + (topIV ? `\n**Highest IV:** ${emojis.emojiFor(topIV.Species || '')} ${topIV.Nickname || topIV.Species} at ${Math.round((topIV.IV ?? 0) * 100)}%` : '')),
         ]);
-      const desc = slice
-        .map((e, i) => {
-          const offset = p * pageSize;
-          const moves = (e.Moveset || []).join(', ') || 'none';
-          const em = emojis.emojiFor(e.Species || e.Nickname || '');
-          return `${offset + i + 1}. ${em} **${e.Nickname || e.Species}** — Lvl ${e.Level ?? '?'} • IV ${Math.round((e.IV ?? 0) * 100)}%\nMoves: ${moves}${e.Box ? ` • Box ${e.Box}` : ''}`;
-        })
-        .join('\n\n');
-      c.setComponents([...c.toJSON().components, text(desc)]);
+      const entries = slice.map((e) => {
+        const rot = rotBySpecies.get((e.Species || '').toLowerCase());
+        const iconUrl = rot ? `${ICON_BASE}/${rot.Icon}` : null;
+        const moves = (e.Moveset || []).join(', ') || 'none';
+        const label = `${e.Nickname || e.Species} — Lvl ${e.Level ?? '?'} • IV ${Math.round((e.IV ?? 0) * 100)}%`;
+        const boxEmoji = e.Box ? emojis.emojiFor(e.Box) : '';
+        const accessory = iconUrl ? new ThumbnailBuilder().setURL(iconUrl) : null;
+        const content = new TextDisplayBuilder().setContent(`**${label}**\nMoves: ${moves}${boxEmoji ? ` ${boxEmoji}` : ''}`);
+        if (accessory) {
+          return new SectionBuilder().setComponents([content]).setAccessory(accessory);
+        }
+        return content;
+      });
+      c.setComponents([...c.toJSON().components, ...entries]);
       pages.push(withNav(c, p + 1, pcTotalPages, 'pc'));
     }
     categoryRanges.pc = [pcStart, pcStart + pcTotalPages - 1];

@@ -17,7 +17,7 @@ const data = require('./src/data');
 const helpers = require('./src/helpers');
 const embeds = require('./src/embeds');
 const handlers = require('./src/handlers');
-const { Paginator, getActivePaginator } = require('./src/paginator');
+const { getActivePaginator } = require('./src/paginator');
 
 // ---------- Constants ----------
 
