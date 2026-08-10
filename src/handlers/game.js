@@ -1,8 +1,8 @@
 // src/handlers/game.js
 // Handles /game 8ball, /game blackjack, /game dice_roll, /top, /daily, /guess
 
-const { EmbedBuilder, ComponentType, MessageFlags, ButtonStyle } = require('discord.js');
-const { V2TextDisplayBuilder: TextDisplayBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder } = require('v2componentsbuilder');
+const { EmbedBuilder, ComponentType, MessageFlags, ButtonStyle, SeparatorSpacingSize } = require('discord.js');
+const { V2TextDisplayBuilder: TextDisplayBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder, V2SeparatorBuilder: SeparatorBuilder } = require('v2componentsbuilder');
 const { Paginator } = require('../paginator');
 const {
   buildTopEmbed,
@@ -296,6 +296,20 @@ async function sendBlackjackResult(interaction, playerHand, dealerHand, hideDeal
 
 // ---------- Dice Roll ----------
 
+function buildDiceContainer(count, rolls, total) {
+  const diceEmojis = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+  const diceStr = rolls.map(r => diceEmojis[r - 1]).join(' ');
+  return new ContainerBuilder()
+    .setColor(0xf59e0b)
+    .setComponents([
+      new TextDisplayBuilder().setContent('Dice roll'),
+      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
+      new SectionBuilder()
+        .setComponents([new TextDisplayBuilder().setContent(`Rolls: **${diceStr}**\nNumber rolled: **${count}**\nTotal: **${total}**`)])
+        .setAccessory(new ButtonBuilder().setStyle(ButtonStyle.Secondary).setLabel('re-roll').setEmoji({ name: '🎲' }).setCustomId('dice:reroll')),
+    ]);
+}
+
 async function handleDiceRoll(interaction) {
   try {
     const count = interaction.options.getInteger('count') ?? 1;
@@ -304,18 +318,7 @@ async function handleDiceRoll(interaction) {
       rolls.push(Math.floor(Math.random() * 6) + 1);
     }
     const total = rolls.reduce((a, b) => a + b, 0);
-    const diceEmojis = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-    const diceStr = rolls.map(r => diceEmojis[r - 1]).join(' ');
-    const container = new ContainerBuilder()
-      .setColor(0xf59e0b)
-      .setComponents([
-        new SectionBuilder()
-          .setComponents([new TextDisplayBuilder().setContent(`Rolled **${count}** die${count > 1 ? 's' : ''}:\n${diceStr}`)])
-          .setAccessory(new ButtonBuilder().setStyle(ButtonStyle.Secondary).setLabel('Dice').setCustomId('dice').setDisabled(true)),
-        new SectionBuilder()
-          .setComponents([new TextDisplayBuilder().setContent(`**Total:** ${total}`)])
-          .setAccessory(new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel('Total').setCustomId('total').setDisabled(true)),
-      ]);
+    const container = buildDiceContainer(count, rolls, total);
     await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
   } catch (err) {
     await interaction.reply({ content: '❌ Failed to roll dice. Components V2 error.', flags: MessageFlags.Ephemeral });
@@ -390,6 +393,7 @@ module.exports = {
   handle8Ball,
   handleBlackjack,
   handleDiceRoll,
+  buildDiceContainer,
   handleTop,
   handleDaily,
   handleGuess,

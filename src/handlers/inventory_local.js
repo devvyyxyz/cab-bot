@@ -30,7 +30,7 @@ async function handleInventoryLocal(interaction, ctx) {
     return { name: r.rot_name, count: r.count, emoji: em, icon: rot.Icon };
   });
 
-  const perPage = 10;
+  const perPage = 6;
   const totalPages = Math.ceil(lines.length / perPage);
   const totalRots = lines.reduce((s, l) => s + l.count, 0);
   const uniqueRots = lines.length;
@@ -80,6 +80,10 @@ async function handleInventoryLocal(interaction, ctx) {
     ]);
     components.push(navRow);
 
+    if (components.length < 1 || components.length > 10) {
+      throw new Error(`Invalid inventory page component count: ${components.length}`);
+    }
+
     const container = new ContainerBuilder()
       .setColor(0x8b5cf6)
       .setComponents(components);
@@ -96,7 +100,13 @@ async function handleInventoryLocal(interaction, ctx) {
     const paginator = new Paginator({ pages, mode: 'components', userId: interaction.user.id, timeout: 120000 });
     await paginator.send(interaction);
   } catch (err) {
-    log.error('Components V2 inventory send failed:', err);
+    const details = {
+      message: err && err.message ? err.message : String(err),
+      code: err && err.code ? err.code : undefined,
+      httpStatus: err && err.httpStatus ? err.httpStatus : undefined,
+      stack: err && err.stack ? err.stack : undefined,
+    };
+    log.error('Components V2 inventory send failed:', details);
     await interaction.editReply({ content: '❌ Failed to render inventory. Components V2 error.', flags: MessageFlags.Ephemeral });
   }
 }

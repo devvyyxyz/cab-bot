@@ -53,7 +53,13 @@ async function handleForceSpawn(interaction, ctx) {
     await ctx.spawnRotForGuild(guild);
     await interaction.editReply({ content: '✅ Forced a spawn! Check the spawn channel, fr.' });
   } catch (err) {
-    ctx.log.error('Force spawn error:', err);
+    const details = {
+      message: err && err.message ? err.message : String(err),
+      code: err && err.code ? err.code : undefined,
+      httpStatus: err && err.httpStatus ? err.httpStatus : undefined,
+      stack: err && err.stack ? err.stack : undefined,
+    };
+    ctx.log.error('Force spawn error:', details);
     await interaction.editReply({
       content: `❌ Couldn't force a spawn: ${err.message || 'unknown error'}`,
     });

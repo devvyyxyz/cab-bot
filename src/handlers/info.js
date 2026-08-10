@@ -10,10 +10,14 @@ const {
   buildRandomSpawnEmbed,
 } = require('../embeds');
 const { findRot, findItem, findSkin, pick } = require('../helpers');
+const { resolveRobloxUser, fetchInventory, cleanUserInput, looksLikeUserId } = require('../helpers');
+const { Paginator } = require('../paginator');
+const { buildInventoryEmbeds } = require('../helpers');
 
 async function handleInfo(interaction, ctx) {
   const type = interaction.options.getString('type');
   const query = interaction.options.getString('name');
+  const user = interaction.options.getString('user');
 
   if (type === 'rot') {
     const random = interaction.options.getBoolean('random');
@@ -44,6 +48,46 @@ async function handleInfo(interaction, ctx) {
       return;
     }
     await interaction.reply({ embeds: [buildBagEmbed(item)] });
+    return;
+  }
+
+  if (type === 'inventory') {
+    if (!user) {
+      await interaction.reply({
+        content: 'Give me a Roblox user ID or username for live API inventory lookup, bro. `/info type:inventory user:1559610713`',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    await interaction.deferReply();
+    const rawUser = user;
+    const userId = cleanUserInput(rawUser);
+    if (!userId) {
+      await interaction.editReply({ content: `Invalid user input \`${rawUser}\`, fr. Use a UID or username.` });
+      return;
+    }
+    let resolvedId = userId;
+    if (!looksLikeUserId(userId)) {
+      const resolved = await resolveRobloxUser(userId);
+      if (resolved.error) {
+        await interaction.editReply({ content: `Couldn't resolve \`${userId}\` to a Roblox user, fr. ${resolved.error}` });
+        return;
+      }
+      resolvedId = resolved.userId;
+    }
+    const result = await fetchInventory(resolvedId);
+    if (result.error) {
+      await interaction.editReply({ content: `Couldn't pull inventory for \`${userId}\` — ${result.error}.\nDouble-check the UID is a real Roblox user with brainrot progress, ong.` });
+      return;
+    }
+    const inv = result.data;
+    if (!inv.Team && !inv.PC && !inv.Hoverboards && !inv.Bag) {
+      await interaction.editReply({ content: `Player \`${userId}\` has an empty inventory, fr.` });
+      return;
+    }
+    const pages = buildInventoryEmbeds(userId, inv);
+    const paginator = new Paginator({ pages, mode: 'components', userId: interaction.user.id, timeout: 120000 });
+    await paginator.send(interaction);
     return;
   }
 
@@ -82,7 +126,7 @@ async function handleInfo(interaction, ctx) {
     return;
   }
 
-  await interaction.reply({ content: 'Unknown info type, fr. Pick rot / hoverboard / item / spawnlocation / about.', flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: 'Unknown info type, fr. Pick rot / hoverboard / item / inventory / spawnlocation / about.', flags: MessageFlags.Ephemeral });
 }
 
 module.exports = handleInfo;

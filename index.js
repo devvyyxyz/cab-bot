@@ -146,8 +146,6 @@ async function spawnRotForGuild(guild) {
   if (!rot) return;
 
   const em = require('./src/emojis').emojiFor(rot.FullName);
-  const stars = data.rarityStars(rot.Rarity);
-  const rarity = helpers.rarityLabel(rot.Rarity);
   const flavor = data.flavorFor(rot);
 
   const container = new ContainerBuilder()
@@ -156,12 +154,12 @@ async function spawnRotForGuild(guild) {
       new SectionBuilder()
         .setComponents([new TextDisplayBuilder().setContent(`${em} **${rot.FullName}** appeared!`)])
         .setAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`)),
-      new SectionBuilder()
-        .setComponents([new TextDisplayBuilder().setContent(`**${rarity} ${stars}**`)])
-        .setAccessory(new ButtonBuilder().setStyle(ButtonStyle.Secondary).setLabel('Rarity').setCustomId('spawn:rarity').setDisabled(true)),
       new TextDisplayBuilder().setContent(flavor),
       new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
-      new TextDisplayBuilder().setContent("Type the brainrot's name to catch it!"),
+      new TextDisplayBuilder().setContent("Click the button to catch it!"),
+      new SectionBuilder()
+        .setComponents([new TextDisplayBuilder().setContent("")])
+        .setAccessory(new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel('Catch').setEmoji({ name: '🎉' }).setCustomId('spawn:catch')),
     ]);
 
   const msg = await channel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
@@ -233,7 +231,12 @@ client.once(Events.ClientReady, async (c) => {
     db.init();
     log.info('   Database initialized.');
   } catch (err) {
-    log.error('   ❌ Database init failed:', err);
+    const details = {
+      message: err && err.message ? err.message : String(err),
+      code: err && err.code ? err.code : undefined,
+      stack: err && err.stack ? err.stack : undefined,
+    };
+    log.error('   ❌ Database init failed:', details);
   }
 
   const healthPort = process.env.PORT || process.env.HEALTH_CHECK_PORT;
@@ -262,6 +265,43 @@ client.on(Events.GuildCreate, async (guild) => {
   }
 });
 
+async function catchSpawn(guildId, catcherId, catcherTag, catcherUsername) {
+  const spawn = activeSpawns.get(guildId);
+  if (!spawn) return false;
+  const rot = spawn.rot;
+  const em = require('./src/emojis').emojiFor(rot.FullName);
+
+  db.addCatch(guildId, catcherId, rot.FullName);
+
+  const caughtContainer = new ContainerBuilder()
+    .setColor(0x22c55e)
+    .setComponents([
+      new SectionBuilder()
+        .setComponents([new TextDisplayBuilder().setContent(`${em} **${rot.FullName}** was caught!`)])
+        .setAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`)),
+      new TextDisplayBuilder().setContent(data.flavorFor(rot)),
+      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
+      new TextDisplayBuilder().setContent(`🎉 **Caught by ${catcherUsername}** (${catcherTag})`),
+    ]);
+
+  if (spawn.messageId && spawn.channelId) {
+    const guild = client.guilds.cache.get(guildId);
+    const channel = guild?.channels.cache.get(spawn.channelId);
+    if (channel && channel.viewable) {
+      channel.messages.fetch(spawn.messageId).then(async (msg) => {
+        await msg.edit({ components: [caughtContainer], flags: MessageFlags.IsComponentsV2 }).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+
+  lastSpawnEnd.set(guildId, Date.now());
+  activeSpawns.delete(guildId);
+  db.clearSpawn(guildId);
+
+  log.info(`User ${catcherTag} caught ${rot.FullName} in guild ${guildId}`);
+  return true;
+}
+
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
   if (!message.guild) return;
@@ -284,53 +324,19 @@ client.on(Events.MessageCreate, async (message) => {
 
   if (!isMatch) return;
 
-  db.addCatch(guildId, message.author.id, rot.FullName);
+  const caught = await catchSpawn(guildId, message.author.id, message.author.tag, message.author.username);
+  if (!caught) return;
 
-  const em = require('./src/emojis').emojiFor(rot.FullName);
-  const stars = data.rarityStars(rot.Rarity);
-  const rarity = helpers.rarityLabel(rot.Rarity);
-
-  // Edit the original spawn message to show it was caught
-  const caughtContainer = new ContainerBuilder()
-    .setColor(0x22c55e)
-    .setComponents([
-      new SectionBuilder()
-        .setComponents([new TextDisplayBuilder().setContent(`${em} **${rot.FullName}** was caught!`)])
-        .setAccessory(new ThumbnailBuilder().setURL(`${data.ICON_BASE}/${rot.Icon}`)),
-      new SectionBuilder()
-        .setComponents([new TextDisplayBuilder().setContent(`**${rarity} ${stars}**`)])
-        .setAccessory(new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel('Rarity').setCustomId('caught:rarity').setDisabled(true)),
-      new TextDisplayBuilder().setContent(data.flavorFor(rot)),
-      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
-      new TextDisplayBuilder().setContent(`🎉 **Caught by ${message.author.username}** (${message.author.tag})`),
-    ]);
-
-  if (spawn.messageId) {
-    try {
-      const spawnMsg = await message.channel.messages.fetch(spawn.messageId);
-      await spawnMsg.edit({ components: [caughtContainer], flags: MessageFlags.IsComponentsV2 }).catch(() => {});
-    } catch {
-      // Message may already be deleted; ignore.
-    }
-  }
-
-  // Send ephemeral confirmation to the catcher
   try {
     const confirmContainer = new ContainerBuilder()
       .setColor(0x22c55e)
       .setComponents([
-        new TextDisplayBuilder().setContent(`✅ You caught **${rot.FullName}**!`),
+        new TextDisplayBuilder().setContent(`✅ You caught **${spawn.rot.FullName}**!`),
       ]);
     await message.reply({ components: [confirmContainer], flags: MessageFlags.IsComponentsV2 });
   } catch (err) {
     log.warn(`Failed to send catch confirmation: ${err.message}`);
   }
-
-  lastSpawnEnd.set(guildId, Date.now());
-  activeSpawns.delete(guildId);
-  db.clearSpawn(guildId);
-
-  log.info(`User ${message.author.tag} caught ${rot.FullName} in guild ${guildId}`);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -385,6 +391,42 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await interaction.update({ components: [embeds.buildGuessContainer(round, true, { clicked: clickedName })] });
         return;
       }
+      if (id === 'dice:reroll') {
+        const count = 1;
+        const rolls = [];
+        for (let i = 0; i < count; i++) {
+          rolls.push(Math.floor(Math.random() * 6) + 1);
+        }
+        const total = rolls.reduce((a, b) => a + b, 0);
+        const container = require('./src/handlers/game').buildDiceContainer(count, rolls, total);
+        await interaction.update({ components: [container], flags: MessageFlags.IsComponentsV2 });
+        return;
+      }
+      if (id === 'spawn:catch') {
+        const guildId = interaction.guildId;
+        if (!guildId) {
+          await interaction.reply({ content: 'Can only catch in a server, fr.', flags: MessageFlags.Ephemeral });
+          return;
+        }
+        const spawn = activeSpawns.get(guildId);
+        if (!spawn) {
+          await interaction.reply({ content: 'No active spawn to catch, fr.', flags: MessageFlags.Ephemeral });
+          return;
+        }
+        const rotName = spawn.rot.FullName;
+        const caught = await catchSpawn(guildId, interaction.user.id, interaction.user.tag, interaction.user.username);
+        if (!caught) {
+          await interaction.reply({ content: 'No active spawn to catch, fr.', flags: MessageFlags.Ephemeral });
+          return;
+        }
+        const confirmContainer = new ContainerBuilder()
+          .setColor(0x22c55e)
+          .setComponents([
+            new TextDisplayBuilder().setContent(`✅ You caught **${rotName}**!`),
+          ]);
+        await interaction.reply({ components: [confirmContainer], flags: MessageFlags.IsComponentsV2 });
+        return;
+      }
       return;
     }
 
@@ -410,7 +452,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     await handler(interaction, ctx);
   } catch (err) {
-    log.error('Interaction error:', err);
+    const details = {
+      message: err && err.message ? err.message : String(err),
+      code: err && err.code ? err.code : undefined,
+      httpStatus: err && err.httpStatus ? err.httpStatus : undefined,
+      stack: err && err.stack ? err.stack : undefined,
+    };
+    log.error('Interaction error:', details);
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: 'Something cooked itself, try again fr. 🗿', flags: MessageFlags.Ephemeral }).catch(() => {});
     } else if (interaction.isRepliable() && interaction.deferred) {

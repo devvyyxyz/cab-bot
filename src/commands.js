@@ -17,6 +17,7 @@ const commands = [
           { name: "rot", value: "rot" },
           { name: "hoverboard", value: "hoverboard" },
           { name: "item", value: "item" },
+          { name: "inventory", value: "inventory" },
           { name: "spawnlocation", value: "spawnlocation" },
           { name: "about", value: "about" }
         )
@@ -45,10 +46,15 @@ const commands = [
     .addIntegerOption((opt) =>
       opt
         .setName("zone")
-        .setDescription("Zone number (1-3). Used with type:spawnlocation for a specific location.")
+        .setDescription("Zone number. Used with type:spawnlocation for a specific location.")
         .setRequired(false)
         .setMinValue(1)
-        .setMaxValue(3)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("user")
+        .setDescription("Roblox user ID or username. Used with type:inventory for live API data.")
+        .setRequired(false)
     ),
 
   // ---------------------------------------------------------------- /settings
@@ -125,12 +131,12 @@ const commands = [
   // ---------------------------------------------------------------- /inventory
   new SlashCommandBuilder()
     .setName("inventory")
-    .setDescription("Look up a player's live inventory from indieun.com/cab (by UID or username).")
-    .addStringOption((opt) =>
+    .setDescription("View your caught brainrot inventory in this server.")
+    .addUserOption((opt) =>
       opt
         .setName("user")
-        .setDescription('Roblox user ID (e.g. "1559610713") or username.')
-        .setRequired(true)
+        .setDescription("Check another member's local caught inventory. Omit to view your own.")
+        .setRequired(false)
     ),
 
   // ---------------------------------------------------------------- /ping
