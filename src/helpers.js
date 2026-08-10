@@ -27,6 +27,19 @@ const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGa
 const { execFile } = require('child_process');
 const emojis = require('./emojis');
 
+const FALLBACK_EMOJI = { name: 'sad_face', id: '1535494911636537414' };
+
+function safeEmoji(input) {
+  if (!input) return FALLBACK_EMOJI;
+  const s = String(input).trim();
+  if (!s) return FALLBACK_EMOJI;
+  const match = s.match(/^<a?:([^:]+):(\d+)>$/);
+  if (match) {
+    return { name: match[1], id: match[2], animated: s.startsWith('<a:') };
+  }
+  return { name: s };
+}
+
 // ---------- Lookup helpers ----------
 
 function findRot(query) {
@@ -521,8 +534,10 @@ function buildInventoryEmbeds(userId, inv) {
   };
   const divider = () =>
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true);
-  const boardButton = (label, emoji) =>
-    new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel(label).setEmoji({ name: emoji }).setCustomId(`inv:${label}`);
+  const boardButton = (label, emoji) => {
+    const em = safeEmoji(emoji);
+    return new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel(label).setEmoji(em).setCustomId(`inv:${label}`);
+  };
 
   function withNav(container, pageIndex, totalPages) {
     const json = container.toJSON();
@@ -687,4 +702,5 @@ module.exports = {
   buildInventoryEmbeds,
   entryToTierlistEntry,
   runTierlistScript,
+  safeEmoji,
 };
