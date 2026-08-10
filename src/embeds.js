@@ -377,8 +377,10 @@ function buildDailyEmbed() {
   const { rot, dateStr } = dailyRot();
   const em = emojis.emojiFor(rot.FullName);
   const flavor = `Today's brainrot is ${em} **${rot.FullName}**, fr. Come back tomorrow for a new one.`;
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const dateLabel = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   return new EmbedBuilder()
-    .setTitle(`📅 Brainrot of the Day — ${dateStr}`)
+    .setTitle(`<:earth:1535487899712225301> Brainrot of the Day — ${dateLabel}`)
     .setDescription(flavor)
     .setColor(0xa855f7)
     .setThumbnail(`${ICON_BASE}/${rot.Icon}`)
