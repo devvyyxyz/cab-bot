@@ -1,9 +1,9 @@
-version: "3.9"
-
 services:
   bot:
+    image: ghcr.io/devvyyxyz/cab-bot:latest
+    pull_policy: always
     build:
-      context: https://github.com/devvyyxyz/cab-bot.git
+      context: .
       dockerfile: Dockerfile
     container_name: cab-bot
     restart: unless-stopped
