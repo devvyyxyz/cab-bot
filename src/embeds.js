@@ -113,8 +113,8 @@ const HELP = {
   },
   forcespawn: {
     summary: 'Force a brainrot to spawn now in this server (requires Manage Channels).',
-    usage: '/forcespawn',
-    examples: ['/forcespawn'],
+    usage: '/admin forcespawn',
+    examples: ['/admin forcespawn'],
     notes: 'Requires the Manage Channels permission. Spawns a random brainrot immediately in the configured spawn channel.',
   },
   ping: {
@@ -139,11 +139,10 @@ function buildHelpOverviewEmbed() {
       { name: '/daily', value: HELP.daily.summary, inline: false },
       { name: '/guess', value: HELP.guess.summary, inline: false },
       { name: '/tierlist', value: HELP.tierlist.summary, inline: false },
-      { name: '/start', value: HELP.start.summary, inline: false },
       { name: '/settings', value: HELP.settings.summary, inline: false },
       { name: '/help', value: HELP.help.summary, inline: false },
       { name: '/ping', value: HELP.ping.summary, inline: false },
-      { name: '/forcespawn', value: HELP.forcespawn.summary, inline: false }
+      { name: '/admin forcespawn', value: HELP.forcespawn.summary, inline: false }
     )
     .setFooter({ text: 'Use /help command:<name> for detailed help on any command.' })
     .setTimestamp();

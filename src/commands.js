@@ -168,7 +168,7 @@ const commands = [
           { name: "guess", value: "guess" },
           { name: "tierlist", value: "tierlist" },
           { name: "settings", value: "settings" },
-          { name: "forcespawn", value: "forcespawn" }
+          { name: "admin forcespawn", value: "forcespawn" }
         )
     ),
 
@@ -199,11 +199,6 @@ const commands = [
           opt.setName("b_level").setDescription("Side B Level (1-100). Default 10.").setRequired(false).setMinValue(1).setMaxValue(100)
         )
     ),
-
-  // ---------------------------------------------------------------- /start
-  new SlashCommandBuilder()
-    .setName("start")
-    .setDescription("Launch the Brainrot Bot activity."),
 
   // ---------------------------------------------------------------- /top
   new SlashCommandBuilder()
@@ -261,11 +256,16 @@ const commands = [
         )
     ),
 
-  // ---------------------------------------------------------------- /forcespawn
+  // ---------------------------------------------------------------- /admin
   new SlashCommandBuilder()
-    .setName("forcespawn")
-    .setDescription("Force a brainrot to spawn now in this server (Manage Channels required).")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+    .setName("admin")
+    .setDescription("Admin commands for this server.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addSubcommand((sub) =>
+      sub
+        .setName("forcespawn")
+        .setDescription("Force a brainrot to spawn now in this server (Manage Channels required).")
+    ),
 ].map((cmd) => cmd.toJSON());
 
 module.exports = commands;
