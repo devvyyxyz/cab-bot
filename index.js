@@ -251,7 +251,7 @@ client.once(Events.ClientReady, async (c) => {
 client.on(Events.GuildCreate, async (guild) => {
   log.info(`Joined new guild: ${guild.name} (${guild.id})`);
   const welcomeMsg = welcomeMessages.get(guild.id) ||
-    'Hey! I\'m Brainrot Bot — like cat bot, but for Italian brainrot characters. Try `/info type:rot` or `/help` to get started, fr. 🗿';
+    'Hey! I\'m Brainrot Bot — like cat bot, but for Italian brainrot characters. Try `/info brainrot` or `/help` to get started, fr. 🗿';
   const systemChannel = guild.systemChannel;
   if (systemChannel && systemChannel.viewable) {
     await systemChannel.send(welcomeMsg).catch(() => {});

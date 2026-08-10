@@ -7,54 +7,85 @@ const commands = [
   // ---------------------------------------------------------------- /info
   new SlashCommandBuilder()
     .setName("info")
-    .setDescription("Look up brainrot info — rot, hoverboard, item, or about.")
-    .addStringOption((opt) =>
-      opt
-        .setName("type")
-        .setDescription("What kind of info?")
-        .setRequired(true)
-        .addChoices(
-          { name: "rot", value: "rot" },
-          { name: "hoverboard", value: "hoverboard" },
-          { name: "item", value: "item" },
-          { name: "inventory", value: "inventory" },
-          { name: "spawnlocation", value: "spawnlocation" },
-          { name: "about", value: "about" }
+    .setDescription("Look up brainrot info.")
+    .addSubcommand((sub) =>
+      sub
+        .setName("brainrot")
+        .setDescription("Look up a specific brainrot, or show a random one.")
+        .addStringOption((opt) =>
+          opt
+            .setName("name")
+            .setDescription("Brainrot name (autocomplete).")
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+        .addBooleanOption((opt) =>
+          opt
+            .setName("random")
+            .setDescription("Return a random brainrot instead of looking up a specific name.")
+            .setRequired(false)
         )
     )
-    .addStringOption((opt) =>
-      opt
-        .setName("name")
-        .setDescription("Specific entry to look up (autocomplete).")
-        .setRequired(false)
-        .setAutocomplete(true)
+    .addSubcommand((sub) =>
+      sub
+        .setName("hoverboard")
+        .setDescription("Look up a hoverboard skin, or show a random one.")
+        .addStringOption((opt) =>
+          opt
+            .setName("name")
+            .setDescription("Hoverboard name (autocomplete).")
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
     )
-    .addBooleanOption((opt) =>
-      opt
-        .setName("random")
-        .setDescription("Return a random entry instead of looking up a specific name.")
-        .setRequired(false)
+    .addSubcommand((sub) =>
+      sub
+        .setName("item")
+        .setDescription("Look up a bag item, or show a random one.")
+        .addStringOption((opt) =>
+          opt
+            .setName("name")
+            .setDescription("Item name (autocomplete).")
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+        .addBooleanOption((opt) =>
+          opt
+            .setName("random")
+            .setDescription("Return a random item instead of looking up a specific name.")
+            .setRequired(false)
+        )
     )
-    .addIntegerOption((opt) =>
-      opt
-        .setName("world")
-        .setDescription("World number (1 or 2). Used with type:spawnlocation for a specific location.")
-        .setRequired(false)
-        .setMinValue(1)
-        .setMaxValue(2)
+    .addSubcommand((sub) =>
+      sub
+        .setName("spawn")
+        .setDescription("Show brainrots that spawn at a given world/zone, or a random spawn location.")
+        .addIntegerOption((opt) =>
+          opt
+            .setName("world")
+            .setDescription("World number (1 or 2).")
+            .setRequired(false)
+            .setMinValue(1)
+            .setMaxValue(2)
+        )
+        .addIntegerOption((opt) =>
+          opt
+            .setName("zone")
+            .setDescription("Zone number.")
+            .setRequired(false)
+            .setMinValue(1)
+        )
     )
-    .addIntegerOption((opt) =>
-      opt
-        .setName("zone")
-        .setDescription("Zone number. Used with type:spawnlocation for a specific location.")
-        .setRequired(false)
-        .setMinValue(1)
-    )
-    .addStringOption((opt) =>
-      opt
-        .setName("user")
-        .setDescription("Roblox user ID or username. Used with type:inventory for live API data.")
-        .setRequired(false)
+    .addSubcommand((sub) =>
+      sub
+        .setName("inventory")
+        .setDescription("Look up a player's live inventory from indieun.com/cab.")
+        .addStringOption((opt) =>
+          opt
+            .setName("user")
+            .setDescription("Roblox user ID (e.g. \"1559610713\") or username.")
+            .setRequired(true)
+        )
     ),
 
   // ---------------------------------------------------------------- /settings
@@ -157,7 +188,7 @@ const commands = [
           { name: "info", value: "info" },
           { name: "inventory", value: "inventory" },
           { name: "trade", value: "trade" },
-          { name: "spawnlocation", value: "spawnlocation" },
+          { name: "spawn", value: "spawn" },
           { name: "top", value: "top" },
           { name: "daily", value: "daily" },
           { name: "guess", value: "guess" },

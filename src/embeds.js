@@ -41,15 +41,15 @@ const { rarityLabel, buildInventoryPages, brainrotSummary } = helpers;
 
 const HELP = {
   info: {
-    summary: 'Look up brainrot info — rot, hoverboard, item, or about.',
-    usage: '/info type:<rot|hoverboard|item|about> [name:<query>]',
-    examples: ['/info type:rot', '/info type:rot name:Brr Brrr Patapim', '/info type:hoverboard name:UFO', '/info type:item name:Infinity Box', '/info type:about'],
-    notes: 'Omitting name returns a random entry for any type. Use autocomplete to find a specific one.',
+    summary: 'Look up brainrot info — brainrot, hoverboard, item, spawn, or inventory.',
+    usage: '/info <subcommand>',
+    examples: ['/info brainrot', '/info hoverboard', '/info item', '/info spawn', '/info inventory'],
+    notes: 'Subcommands: brainrot, hoverboard, item, spawn, inventory. Use autocomplete to find specific names.',
   },
   inventory: {
     summary: 'Look up a player live inventory from indieun.com/cab.',
-    usage: '/inventory user:<Roblox UID>',
-    examples: ['/inventory user:1559610713'],
+    usage: '/info inventory user:<Roblox UID>',
+    examples: ['/info inventory user:1559610713'],
     notes: 'Accepts either a numeric Roblox user ID or a username. The bot resolves usernames via the Roblox API.',
   },
   trade: {
@@ -64,10 +64,10 @@ const HELP = {
     examples: ['/start'],
     notes: 'Posts an embed with a Launch Activity button.',
   },
-  spawnlocation: {
+  spawn: {
     summary: 'Show brainrots that spawn at a given world/zone, or a random spawn location.',
-    usage: '/info type:spawnlocation [world:<1|2>] [zone:<1-3>]',
-    examples: ['/info type:spawnlocation', '/info type:spawnlocation world:2 zone:3', '/info type:spawnlocation world:1'],
+    usage: '/info spawn [world:<1|2>] [zone:<1-3>]',
+    examples: ['/info spawn', '/info spawn world:2 zone:3', '/info spawn world:1'],
     notes: 'If you omit both world and zone, the bot picks a random spawn location. If you provide world but not zone (or vice versa), it picks a random matching location.',
   },
   top: {
@@ -96,7 +96,7 @@ const HELP = {
   },
   help: {
     summary: 'Show bot help, optionally for a specific command.',
-    usage: '/help [command:<info|inventory|trade|start|spawnlocation|top|daily|guess|tierlist|settings|help>]',
+    usage: '/help [command:<info|inventory|trade|spawn|top|daily|guess|tierlist|settings|help>]',
     examples: ['/help', '/help command:trade'],
     notes: 'With no argument, shows all commands with a one-line summary.',
   },
@@ -118,24 +118,6 @@ const HELP = {
     examples: ['/ping'],
     notes: 'Returns the round-trip latency and Discord API ping.',
   },
-  'game 8ball': {
-    summary: 'Ask the Magic 8-Ball a yes/no question.',
-    usage: '/game 8ball question:<your question>',
-    examples: ['/game 8ball question:Will I catch a legendary brainrot today?'],
-    notes: 'Returns a random mystical answer from the 8-Ball.',
-  },
-  'game blackjack': {
-    summary: 'Play a simplified game of blackjack against the system.',
-    usage: '/game blackjack',
-    examples: ['/game blackjack'],
-    notes: 'Try to get as close to 21 as possible without going over.',
-  },
-  'game dice_roll': {
-    summary: 'Roll one or more dice.',
-    usage: '/game dice_roll [count:<number>]',
-    examples: ['/game dice_roll', '/game dice_roll count:4'],
-    notes: 'Defaults to 1 die. You can roll up to 10 dice at once.',
-  },
 };
 
 function buildHelpOverviewEmbed() {
@@ -147,7 +129,7 @@ function buildHelpOverviewEmbed() {
       { name: '/info', value: HELP.info.summary, inline: false },
       { name: '/inventory', value: HELP.inventory.summary, inline: false },
       { name: '/trade', value: HELP.trade.summary, inline: false },
-      { name: '/info type:spawnlocation', value: HELP.spawnlocation.summary, inline: false },
+      { name: '/info spawn', value: HELP.spawn.summary, inline: false },
       { name: '/top', value: HELP.top.summary, inline: false },
       { name: '/daily', value: HELP.daily.summary, inline: false },
       { name: '/guess', value: HELP.guess.summary, inline: false },
@@ -246,19 +228,17 @@ function buildAboutEmbed() {
       {
         name: 'Commands',
         value:
-          '`/info type:rot [name:<x>]` — random or specific brainrot\n' +
-          '`/info type:hoverboard [name:<x>]` — random or specific hoverboard skin\n' +
-          '`/info type:item [name:<x>]` — random or specific bag item\n' +
-          '`/info type:about` — this message\n' +
-          '`/inventory user:<id>` — live player inventory\n' +
+          '`/info brainrot [name:<x>]` — random or specific brainrot\n' +
+          '`/info hoverboard [name:<x>]` — random or specific hoverboard skin\n' +
+          '`/info item [name:<x>]` — random or specific bag item\n' +
+          '`/info spawn [world] [zone]` — brainrots at a location\n' +
+          '`/info inventory user:<id>` — live player inventory\n' +
           '`/help [command:<x>]` — general help or per-command help\n' +
           '`/trade calculate a:<x> [a_iv] [a_level] b:<x> [b_iv] [b_level]` — trade fairness calculator\n' +
-          '`/info type:spawnlocation [world] [zone]` — brainrots at a location\n' +
           '`/top by:<stat> [count]` — top N brainrots by rarity/attack/health/speed\n' +
           '`/daily` — brainrot of the day (same all day UTC)\n' +
           '`/guess` — mini-game: identify a brainrot from its icon\n' +
           '`/tierlist user:<id> [source]` — generate a tier-list image\n' +
-          '`/start` — launch the Brainrot Bot activity\n' +
           '`/settings` — configure server settings\n' +
           '`/ping` — check bot latency',
       },

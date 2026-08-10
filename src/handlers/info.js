@@ -9,17 +9,18 @@ const {
   buildSpawnEmbed,
   buildRandomSpawnEmbed,
 } = require('../embeds');
-const { findRot, findItem, findSkin, pick } = require('../helpers');
+const { findRot, findItem, findSkin } = require('../helpers');
 const { resolveRobloxUser, fetchInventory, cleanUserInput, looksLikeUserId } = require('../helpers');
 const { Paginator } = require('../paginator');
 const { buildInventoryEmbeds } = require('../helpers');
+const { pick } = require('../data');
 
 async function handleInfo(interaction, ctx) {
-  const type = interaction.options.getString('type');
+  const sub = interaction.options.getSubcommand();
   const query = interaction.options.getString('name');
   const user = interaction.options.getString('user');
 
-  if (type === 'rot') {
+  if (sub === 'brainrot') {
     const random = interaction.options.getBoolean('random');
     const rot = (random || !query) ? pick(ctx.data.rots) : findRot(query);
     if (!rot) {
@@ -30,7 +31,7 @@ async function handleInfo(interaction, ctx) {
     return;
   }
 
-  if (type === 'hoverboard') {
+  if (sub === 'hoverboard') {
     const skin = query ? findSkin(query) : pick(ctx.data.skins);
     if (!skin) {
       await interaction.reply({ content: `Couldn't find a hoverboard matching \`${query}\`, fr. Try the autocomplete.`, flags: MessageFlags.Ephemeral });
@@ -40,7 +41,7 @@ async function handleInfo(interaction, ctx) {
     return;
   }
 
-  if (type === 'item') {
+  if (sub === 'item') {
     const random = interaction.options.getBoolean('random');
     const item = (random || !query) ? pick(ctx.data.items) : findItem(query);
     if (!item) {
@@ -51,10 +52,10 @@ async function handleInfo(interaction, ctx) {
     return;
   }
 
-  if (type === 'inventory') {
+  if (sub === 'inventory') {
     if (!user) {
       await interaction.reply({
-        content: 'Give me a Roblox user ID or username for live API inventory lookup, bro. `/info type:inventory user:1559610713`',
+        content: 'Give me a Roblox user ID or username for live API inventory lookup, bro. `/info inventory user:1559610713`',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -91,12 +92,7 @@ async function handleInfo(interaction, ctx) {
     return;
   }
 
-  if (type === 'about') {
-    await interaction.reply({ embeds: [buildAboutEmbed()] });
-    return;
-  }
-
-  if (type === 'spawnlocation') {
+  if (sub === 'spawn') {
     const world = interaction.options.getInteger('world');
     const zone = interaction.options.getInteger('zone');
 
@@ -107,7 +103,7 @@ async function handleInfo(interaction, ctx) {
 
     if ((world && !zone) || (zone && !world)) {
       await interaction.reply({
-        content: 'Give me both `world` and `zone`, bro — or leave both blank for a random spawn. Like `/info type:spawnlocation world:2 zone:3`.',
+        content: 'Give me both `world` and `zone`, bro — or leave both blank for a random spawn. Like `/info spawn world:2 zone:3`.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -126,7 +122,7 @@ async function handleInfo(interaction, ctx) {
     return;
   }
 
-  await interaction.reply({ content: 'Unknown info type, fr. Pick rot / hoverboard / item / inventory / spawnlocation / about.', flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: 'Unknown info subcommand, fr. Pick brainrot / hoverboard / item / spawn / inventory.', flags: MessageFlags.Ephemeral });
 }
 
 module.exports = handleInfo;
