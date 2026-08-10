@@ -25,12 +25,6 @@ function format(levelName, msg, meta) {
   const colored = COLORS[levelName] ? COLORS[levelName] + tag + RESET : tag;
   const line = `${colored} ${msg}`;
   if (meta !== undefined) {
-    // If meta is an Error, include its message and stack for helpful logs.
-    if (meta instanceof Error) {
-      const errMsg = meta.message || String(meta);
-      const stack = meta.stack ? `\n${meta.stack}` : '';
-      return `${line} ${errMsg}${stack}`;
-    }
     try {
       return `${line} ${typeof meta === "string" ? meta : JSON.stringify(meta)}`;
     } catch {

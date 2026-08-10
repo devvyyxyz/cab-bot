@@ -28,26 +28,6 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, "..", "data", "brain
 
 let _db = null;
 
-// Migration runner: applies SQL files from ../migrations in alphabetical order
-function runMigrations() {
-  const fs = require('fs');
-  const dir = path.join(__dirname, '..', 'migrations');
-  if (!fs.existsSync(dir)) return;
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
-  _db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)');
-  const applied = new Set(_db.prepare('SELECT version FROM schema_migrations').all().map((r) => r.version));
-  for (const file of files) {
-    if (applied.has(file)) continue;
-    const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-    const tx = _db.transaction(() => {
-      _db.exec(sql);
-      _db.prepare(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, strftime('%s','now'))`).run(file);
-    });
-    tx();
-    log.info('Applied DB migration: ' + file);
-  }
-}
-
 function init() {
   if (_db) return _db;
   const dir = path.dirname(DB_PATH);
@@ -58,13 +38,8 @@ function init() {
     log.warn(`Could not create DB directory ${dir}: ${e.message}`);
   }
   _db = new Database(DB_PATH);
-  // Performance-oriented pragmas suitable for a read-heavy bot with many users.
-  _db.pragma('journal_mode = WAL');
-  _db.pragma('foreign_keys = ON');
-  _db.pragma('synchronous = NORMAL');
-  _db.pragma('temp_store = MEMORY');
-  // Give a modest cache (negative value = KB). Adjust for host memory (e.g. -2000 = 2MB).
-  _db.pragma('cache_size = -2000');
+  _db.pragma("journal_mode = WAL");
+  _db.pragma("foreign_keys = ON");
 
   // --- guilds table ---
   // One row per guild. Settings are stored as key/value pairs.
@@ -136,8 +111,6 @@ function init() {
   `);
 
   log.info(`Database initialized at ${DB_PATH}`);
-  // Run migrations after the initial bootstrap so new views/triggers/columns get applied.
-  try { runMigrations(); } catch (err) { log.warn('Migrations failed:', err); }
   return _db;
 }
 
@@ -224,13 +197,6 @@ function addCatch(guildId, userId, rotName) {
     insertLog.run(g, u, r);
   });
   tx(guildId, userId, rotName);
-  try {
-    log.info(`DB: added catch ${rotName} for user ${userId} in guild ${guildId} -> ${DB_PATH}`);
-  } catch {}
-}
-
-function dbPath() {
-  return DB_PATH;
 }
 
 function getUserInventory(guildId, userId) {
@@ -242,15 +208,9 @@ function getUserInventory(guildId, userId) {
 }
 
 function getUserInventoryCount(guildId, userId) {
-  // Prefer the materialized `user_inventory_count` table for fast lookup when available.
-  try {
-    const useStmt = _db.prepare('SELECT count FROM user_inventory_count WHERE guild_id = ? AND user_id = ?');
-    const r = useStmt.get(guildId, userId);
-    if (r && typeof r.count === 'number') return r.count;
-  } catch (e) {
-    // Fall back to counting the rows if the materialized table doesn't exist yet.
-  }
-  const stmt = _db.prepare('SELECT COUNT(*) as total FROM user_inventory WHERE guild_id = ? AND user_id = ?');
+  const stmt = _db.prepare(
+    "SELECT COUNT(*) as total FROM user_inventory WHERE guild_id = ? AND user_id = ?"
+  );
   const row = stmt.get(guildId, userId);
   return row ? row.total : 0;
 }
@@ -320,5 +280,4 @@ module.exports = {
   getTopCatchers,
   getCatchStats,
   close,
-  dbPath,
 };

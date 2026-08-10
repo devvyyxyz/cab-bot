@@ -1,9 +1,8 @@
 // src/handlers/inventory_local.js
-const { MessageFlags, EmbedBuilder } = require('discord.js');
+const { MessageFlags, ButtonStyle } = require('discord.js');
 const log = require('../logger');
 const { Paginator } = require('../paginator');
-// Use the external V2 builders shim for Components V2 payloads
-const { V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2TextDisplayBuilder: TextDisplayBuilder, V2ThumbnailBuilder: ThumbnailBuilder } = require('v2componentsbuilder');
+const { V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2TextDisplayBuilder: TextDisplayBuilder, V2ThumbnailBuilder: ThumbnailBuilder, V2ButtonBuilder: ButtonBuilder, V2ActionRowBuilder: ActionRowBuilder, V2SeparatorBuilder: SeparatorBuilder } = require('v2componentsbuilder');
 
 async function handleInventoryLocal(interaction, ctx) {
   const userOpt = interaction.options.getUser ? interaction.options.getUser('user') : null;
@@ -21,7 +20,6 @@ async function handleInventoryLocal(interaction, ctx) {
     return;
   }
 
-  // Build display lines "emoji Name — xN"
   const data = ctx.data;
   const emojis = require('../emojis');
   const helpers = require('../helpers');
@@ -33,69 +31,74 @@ async function handleInventoryLocal(interaction, ctx) {
   });
 
   const perPage = 10;
+  const totalPages = Math.ceil(lines.length / perPage);
+  const totalRots = lines.reduce((s, l) => s + l.count, 0);
+  const uniqueRots = lines.length;
   const pages = [];
+
   for (let i = 0; i < lines.length; i += perPage) {
     const chunk = lines.slice(i, i + perPage);
+    const pageIndex = Math.floor(i / perPage) + 1;
+    const components = [];
+
+    // Header section with thumbnail
+    const headerThumb = new ThumbnailBuilder().setURL('https://cdn.discordapp.com/emojis/1535487893722763304.webp?size=240');
     const headerSection = new SectionBuilder()
       .setComponents([
-        new TextDisplayBuilder().setContent(`🎒 Caught inventory — ${interaction.guild.name}`),
-        new TextDisplayBuilder().setContent(`User: ${interaction.user.tag} (${targetUser})`),
+        new TextDisplayBuilder().setContent(`🎒 Inventory (@${targetUser})`),
+        new TextDisplayBuilder().setContent(`${totalRots} total rots\n${uniqueRots} unique rots`),
       ])
-      .setAccessory(new (require('v2componentsbuilder').V2ButtonBuilder)().setStyle(2).setLabel('Info').setCustomId('inv:header').setDisabled(true));
+      .setAccessory(headerThumb);
+    components.push(headerSection);
 
-    const combined = chunk.map((item) => `${item.emoji} ${item.name} — x${item.count}`).join('\n');
-    const contentSection = new SectionBuilder()
-      .setComponents([new TextDisplayBuilder().setContent(combined)])
-      .setAccessory(new (require('v2componentsbuilder').V2ButtonBuilder)().setStyle(2).setLabel('Items').setCustomId('inv:items').setDisabled(true));
+    // Separator
+    components.push(new SeparatorBuilder().setDivider(true).setSpacing(1));
 
-    const container = new ContainerBuilder().setColor(0x8b5cf6).setComponents([
-      headerSection,
-      contentSection,
+    // Item sections with thumbnails
+    for (const item of chunk) {
+      const thumbUrl = item.icon ? `${data.ICON_BASE}/${item.icon}` : null;
+      const section = new SectionBuilder()
+        .setComponents([
+          new TextDisplayBuilder().setContent(`${item.emoji} ${item.name} (x${item.count})`),
+        ]);
+      if (thumbUrl) {
+        section.setAccessory(new ThumbnailBuilder().setURL(thumbUrl));
+      }
+      components.push(section);
+    }
+
+    // Separator
+    components.push(new SeparatorBuilder().setDivider(true).setSpacing(1));
+
+    // Nav action row inside container
+    const navRow = new ActionRowBuilder().setComponents([
+      new ButtonBuilder().setCustomId('pg:first').setLabel('⏪').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 1),
+      new ButtonBuilder().setCustomId('pg:prev').setLabel('◀️').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 1),
+      new ButtonBuilder().setCustomId('pg:pages').setLabel(`${pageIndex}/${totalPages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+      new ButtonBuilder().setCustomId('pg:next').setLabel('▶️').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === totalPages),
+      new ButtonBuilder().setCustomId('pg:last').setLabel('⏩').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === totalPages),
     ]);
-    pages.push([container]);
+    components.push(navRow);
+
+    const container = new ContainerBuilder()
+      .setColor(0x8b5cf6)
+      .setComponents(components);
+
+    pages.push(container);
   }
 
-  // If runtime supports Components V2 flag, use components mode; otherwise fallback to embeds.
-  const useV2 = MessageFlags && MessageFlags.IsComponentsV2;
-  if (useV2) {
-    // Validate component serialization before attempting to send to avoid runtime validation errors.
-    let valid = true;
-    try {
-      for (const page of pages) {
-        for (const comp of page) {
-          if (!comp || typeof comp.toJSON !== 'function') throw new Error('Component missing toJSON');
-          // Call toJSON to ensure builders validate now instead of during send
-          comp.toJSON();
-        }
-      }
-    } catch (err) {
-      valid = false;
+  // V2 components only, no embed fallback
+  try {
+    for (const page of pages) {
+      if (!page || typeof page.toJSON !== 'function') throw new Error('Component missing toJSON');
+      page.toJSON();
     }
-    if (valid) {
-      try {
-        const paginator = new Paginator({ pages, mode: 'components', userId: interaction.user.id, timeout: 120000 });
-        await paginator.send(interaction);
-        return;
-      } catch (err) {
-        log.warn('Components V2 send failed during send, falling back to embeds:', err);
-      }
-    } else {
-      log.debug && log.debug('Components V2 not available or pages failed validation; using embed fallback');
-    }
+    const paginator = new Paginator({ pages, mode: 'components', userId: interaction.user.id, timeout: 120000 });
+    await paginator.send(interaction);
+  } catch (err) {
+    log.error('Components V2 inventory send failed:', err);
+    await interaction.editReply({ content: '❌ Failed to render inventory. Components V2 error.', flags: MessageFlags.Ephemeral });
   }
-
-  // Fallback to embed pages
-  const embedPages = [];
-  for (let i = 0; i < lines.length; i += perPage) {
-    const chunk = lines.slice(i, i + perPage);
-    const e = new EmbedBuilder()
-      .setTitle('🎒 Caught Inventory')
-      .setDescription(chunk.map((c) => `${c.emoji} ${c.name} — x${c.count}`).join('\n'))
-      .setFooter({ text: `Page ${Math.floor(i / perPage) + 1}` });
-    embedPages.push(e);
-  }
-  const paginator = new Paginator({ pages: embedPages, mode: 'embed', userId: interaction.user.id, timeout: 120000 });
-  await paginator.send(interaction);
 }
 
 module.exports = handleInventoryLocal;

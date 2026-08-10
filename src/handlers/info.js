@@ -10,7 +10,6 @@ const {
   buildRandomSpawnEmbed,
 } = require('../embeds');
 const { findRot, findItem, findSkin, pick } = require('../helpers');
-const inventoryHandlers = require('./inventory');
 
 async function handleInfo(interaction, ctx) {
   const type = interaction.options.getString('type');
@@ -50,12 +49,6 @@ async function handleInfo(interaction, ctx) {
 
   if (type === 'about') {
     await interaction.reply({ embeds: [buildAboutEmbed()] });
-    return;
-  }
-
-  if (type === 'inventory') {
-    // Delegate to the inventory handler so /info type:inventory works like /inventory
-    await inventoryHandlers.handleInventory(interaction, ctx);
     return;
   }
 

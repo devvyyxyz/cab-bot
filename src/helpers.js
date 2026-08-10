@@ -22,10 +22,9 @@ const {
   TIERLIST_OUT_DIR,
 } = require('./data');
 
-// V2 components builders are provided by the v2 shim
-const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2MediaGalleryItemBuilder: MediaGalleryItemBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder } = require('v2componentsbuilder');
+const { SeparatorSpacingSize, ButtonStyle } = require('discord.js');
+const { V2TextDisplayBuilder: TextDisplayBuilder, V2MediaGalleryBuilder: MediaGalleryBuilder, V2SeparatorBuilder: SeparatorBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2ButtonBuilder: ButtonBuilder, V2ActionRowBuilder: ActionRowBuilder } = require('v2componentsbuilder');
 const { execFile } = require('child_process');
-const { ButtonStyle } = require('discord.js');
 const emojis = require('./emojis');
 
 // ---------- Lookup helpers ----------
@@ -380,6 +379,8 @@ function dailyRot(date = new Date()) {
   return { rot: sorted[seed], sorted, seed, dateStr: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` };
 }
 
+// ---------- Inventory pages ----------
+
 function brainrotSummary(entry) {
   const iv = Math.round((entry.IV ?? 0) * 100);
   const nick = entry.Nickname || entry.Species || 'Unknown';
@@ -404,9 +405,7 @@ function buildInventoryPages(userId, inv) {
     const valid = urls.filter(Boolean);
     if (valid.length === 0) return null;
     const gallery = new MediaGalleryBuilder();
-    for (const url of valid) {
-      gallery.addItems(new MediaGalleryItemBuilder().setURL(url));
-    }
+    gallery.setItems(valid.map((url) => ({ url })));
     return gallery;
   }
 
@@ -501,9 +500,8 @@ function buildInventoryPages(userId, inv) {
 }
 
 // Embed-styled version of the inventory report rendered with Components V2.
-// Returns an array of pages; each page is an array of v2 component builders
-// (a ContainerBuilder with Section/TextDisplay/Separator cards), for use with
-// Paginator mode "components" (sends with IsComponentsV2 flag).
+// Returns an array of ContainerBuilders; each container includes its own nav row
+// as the last component, matching the requested scaffold structure.
 function buildInventoryEmbeds(userId, inv) {
   const bag = inv.Bag || {};
   const hoverboards = inv.Hoverboards || [];
@@ -514,38 +512,65 @@ function buildInventoryEmbeds(userId, inv) {
   const bagCount = bagEntries.length;
   const totalItems = bagEntries.reduce((s, [, q]) => s + q, 0);
 
-  // Small reusable builders.
   const text = (content) => new TextDisplayBuilder().setContent(content);
   const section = (button, ...contents) => {
-    return new SectionBuilder().setAccessory(button).setComponents(contents.map((c) => text(c)));
+    const s = new SectionBuilder()
+      .setComponents(contents.map(text))
+      .setAccessory(button);
+    return s;
   };
-  const divider = () => new SeparatorBuilder().setDivider(true);
-  const boardButton = (label, emoji) => new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel(label).setEmoji({ name: emoji }).setCustomId(`inv:${label}`);
+  const divider = () =>
+    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true);
+  const boardButton = (label, emoji) =>
+    new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel(label).setEmoji({ name: emoji }).setCustomId(`inv:${label}`);
+
+  function withNav(container, pageIndex, totalPages) {
+    const json = container.toJSON();
+    const navRow = new ActionRowBuilder().setComponents([
+      new ButtonBuilder().setCustomId('pg:first').setLabel('⏪').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 1),
+      new ButtonBuilder().setCustomId('pg:prev').setLabel('◀️').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 1),
+      new ButtonBuilder().setCustomId('pg:pages').setLabel(`${pageIndex}/${totalPages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+      new ButtonBuilder().setCustomId('pg:next').setLabel('▶️').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === totalPages),
+      new ButtonBuilder().setCustomId('pg:last').setLabel('⏩').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === totalPages),
+    ]);
+    const navJson = typeof navRow.toJSON === 'function' ? navRow.toJSON() : navRow;
+    return new ContainerBuilder()
+      .setColor(json.accent_color ?? 0x000000)
+      .setSpoiler(json.spoiler || false)
+      .setComponents([...json.components, navJson]);
+  }
 
   const pages = [];
 
   // ---- Page 1: Overview + Team ----
-  const p1 = new ContainerBuilder().setColor(0x8b5cf6).setComponents([
-    section(boardButton('Summary', '🎒'), `🎒 Inventory — ${userId}`),
-    section(boardButton('info', 'ℹ️'), `**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`),
-    divider(),
-    section(boardButton('info', 'ℹ️'), `⚔️ Active Team (${team.length}/6)`),
-  ]);
+  const p1 = new ContainerBuilder()
+    .setColor(0x8b5cf6)
+    .setComponents([
+      section(
+        boardButton('Summary', '🎒'),
+        `🎒 Inventory — ${userId}`,
+      ),
+      text(`**${team.length}/6** team • **${pc.length}** in PC • **${hoverboards.length}** hoverboards • ${bagCount} item types (**${totalItems}** total)`),
+      divider(),
+      text(`⚔️ Active Team (${team.length}/6)`),
+    ]);
   if (team.length > 0) {
     const lines = team.slice(0, 6).map((t, i) => {
       const m = (t.Moveset || []).join(', ') || 'none';
       return `${i + 1}. ${brainrotSummary(t)}\nMoves: ${m}`;
     }).join('\n');
-    p1.setComponents([...(p1.setComponents ? [] : []), section(boardButton('info', 'ℹ️'), lines)]);
+    p1.setComponents([...p1.toJSON().components, text(lines)]);
   } else {
-    p1.setComponents([...(p1.setComponents ? [] : []), section(boardButton('info', 'ℹ️'), '(no active team)')]);
+    p1.setComponents([...p1.toJSON().components, text('(no active team)')]);
   }
-  pages.push([p1]);
+  pages.push(withNav(p1, 1, 4));
 
   // ---- Page 2: Hoverboards ----
-  const p2 = new ContainerBuilder().setColor(0x06b6d4).setComponents([
-    section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
-  ]);
+  const p2 = new ContainerBuilder()
+    .setColor(0x06b6d4)
+    .setComponents([
+      section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
+    ]);
   if (hoverboards.length > 0) {
     const lines = hoverboards.map((h, i) => {
       const meta = skinByName.get((h.Name || '').toLowerCase());
@@ -553,14 +578,11 @@ function buildInventoryEmbeds(userId, inv) {
       const em = emojis.emojiFor(h.Name || '');
       return `${i + 1}. ${em} **${h.Name}** — speed ${spd}`.trim();
     }).join('\n');
-      p2.setComponents([section(boardButton('info', 'ℹ️'), lines)]);
+    p2.setComponents([...p2.toJSON().components, text(lines)]);
   } else {
-    p2.setComponents([
-      section(boardButton('boards', '🛹'), `🛹 Hoverboards (${hoverboards.length})`),
-      section(boardButton('info', 'ℹ️'), '(no hoverboards owned)'),
-    ]);
+    p2.setComponents([...p2.toJSON().components, text('(no hoverboards owned)')]);
   }
-  pages.push([p2]);
+  pages.push(withNav(p2, 2, 4));
 
   // ---- Pages 3+: PC (8 per page) ----
   if (pc.length > 0) {
@@ -570,12 +592,11 @@ function buildInventoryEmbeds(userId, inv) {
     const totalPages = Math.ceil(pcSorted.length / pageSize);
     for (let p = 0; p < totalPages; p++) {
       const slice = pcSorted.slice(p * pageSize, (p + 1) * pageSize);
-      const header =
-        `# 💻 PC — page ${p + 1}/${totalPages} (${pc.length} total)` +
-        (topIV ? `\n**Highest IV:** ${emojis.emojiFor(topIV.Species || '')} ${topIV.Nickname || topIV.Species} at ${Math.round((topIV.IV ?? 0) * 100)}%` : '');
-      const c = new ContainerBuilder().setColor(0x22c55e).setComponents([
-        section(boardButton('pc', '💻'), header),
-      ]);
+      const c = new ContainerBuilder()
+        .setColor(0x22c55e)
+        .setComponents([
+          section(boardButton('pc', '💻'), `# 💻 PC — page ${p + 1}/${totalPages} (${pc.length} total)` + (topIV ? `\n**Highest IV:** ${emojis.emojiFor(topIV.Species || '')} ${topIV.Nickname || topIV.Species} at ${Math.round((topIV.IV ?? 0) * 100)}%` : '')),
+        ]);
       const desc = slice
         .map((e, i) => {
           const offset = p * pageSize;
@@ -584,31 +605,25 @@ function buildInventoryEmbeds(userId, inv) {
           return `${offset + i + 1}. ${em} **${e.Nickname || e.Species}** — Lvl ${e.Level ?? '?'} • IV ${Math.round((e.IV ?? 0) * 100)}%\nMoves: ${moves}${e.Box ? ` • Box ${e.Box}` : ''}`;
         })
         .join('\n\n');
-      c.setComponents([
-        section(boardButton('pc', '💻'), header),
-        section(boardButton('info', 'ℹ️'), desc),
-      ]);
-      pages.push([c]);
+      c.setComponents([...c.toJSON().components, text(desc)]);
+      pages.push(withNav(c, 3 + p, 3 + totalPages - 1));
     }
   }
 
   // ---- Last page: Bag ----
-  const pBag = new ContainerBuilder().setColor(0xf59e0b).setComponents([
-    section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
-  ]);
+  const pBag = new ContainerBuilder()
+    .setColor(0xf59e0b)
+    .setComponents([
+      section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
+    ]);
   if (bagEntries.length > 0) {
     const bagStr = bagEntries.map(([name, qty]) => `${qty.toString().padStart(4)} × ${name}`).join('\n');
-      pBag.setComponents([
-        section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
-        section(boardButton('info', 'ℹ️'), '```\n' + bagStr + '\n```'),
-      ]);
+    pBag.setComponents([...pBag.toJSON().components, text('```\n' + bagStr + '\n```')]);
   } else {
-      pBag.setComponents([
-        section(boardButton('bag', '🎒'), `🎒 Bag (${bagCount} types, ${totalItems} total)`),
-        section(boardButton('info', 'ℹ️'), '(empty bag)'),
-      ]);
+    pBag.setComponents([...pBag.toJSON().components, text('(empty bag)')]);
   }
-  pages.push([pBag]);
+  const totalPageCount = pages.length + 1;
+  pages.push(withNav(pBag, totalPageCount, totalPageCount));
 
   return pages;
 }

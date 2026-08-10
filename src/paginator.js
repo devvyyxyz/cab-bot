@@ -4,22 +4,10 @@
 // Two modes:
 //   1. Embed-based pagination (classic): each page is an EmbedBuilder.
 //      Replies with { embeds: [page], components: [navRow] }.
-//   2. Components V2 pagination: each page is an array of component builders
-//      (ContainerBuilder, TextDisplayBuilder, MediaGalleryBuilder, etc.).
-//      Replies with { components: [...page, navRow] } and the IsComponentsV2 flag.
-//
-// Usage:
-//   const paginator = new Paginator({
-//     pages: [page1, page2, page3],          // required: array of pages
-//     mode: "embed" | "components",           // default "embed"
-//     timeout: 60000,                         // ms before buttons disable (default 60s)
-//     userId: interaction.user.id,            // only this user can navigate
-//     onPage: null,                           // optional (pageIndex) => extra components to inject
-//   });
-//   await paginator.send(interaction);        // initial reply (defers if needed)
-//
-// The paginator attaches a button collector on the reply and handles
-// prev/next/first/last/jump interactions automatically.
+//   2. Components V2 pagination: each page is either:
+//      - An array of component builders, OR
+//      - A single ContainerBuilder with nav injected inside
+//      Replies with { components: [...page, navRow] } or { components: [container], flags: IsComponentsV2 }
 
 const {
   ActionRowBuilder,
@@ -30,15 +18,13 @@ const {
 } = require("discord.js");
 
 // V2 action/button builders for Components V2 mode
-const { V2ActionRowBuilder, V2ButtonBuilder } = require('v2componentsbuilder');
+const { V2ActionRowBuilder, V2ButtonBuilder, V2ContainerBuilder: ContainerBuilder } = require('v2componentsbuilder');
 
 const NAV_BUTTONS = {
   first:  { label: "⏮️", style: ButtonStyle.Secondary },
   prev:   { label: "◀️", style: ButtonStyle.Secondary },
   next:   { label: "▶️", style: ButtonStyle.Secondary },
   last:   { label: "⏭️", style: ButtonStyle.Secondary },
-  // Jump button is more complex (modal), so we omit it by default.
-  // Pages button shows current page count.
   pages:  { label: "Page", style: ButtonStyle.Secondary, disabled: true },
 };
 
@@ -56,7 +42,10 @@ class Paginator {
     }
   }
 
-  // Build the navigation row for the current page state.
+  _isContainerPage(page) {
+    return page && typeof page.setComponents === 'function' && typeof page.toJSON === 'function';
+  }
+
   _buildNavRow() {
     const i = this.currentPage;
     const total = this.pages.length;
@@ -73,53 +62,53 @@ class Paginator {
     }
     const row = new ActionRowBuilder();
     row.addComponents(
-      new ButtonBuilder()
-        .setCustomId("pg:first")
-        .setLabel(NAV_BUTTONS.first.label)
-        .setStyle(NAV_BUTTONS.first.style)
-        .setDisabled(i === 0),
-      new ButtonBuilder()
-        .setCustomId("pg:prev")
-        .setLabel(NAV_BUTTONS.prev.label)
-        .setStyle(NAV_BUTTONS.prev.style)
-        .setDisabled(i === 0),
-      new ButtonBuilder()
-        .setCustomId("pg:pages")
-        .setLabel(`${i + 1}/${total}`)
-        .setStyle(NAV_BUTTONS.pages.style)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId("pg:next")
-        .setLabel(NAV_BUTTONS.next.label)
-        .setStyle(NAV_BUTTONS.next.style)
-        .setDisabled(i === total - 1),
-      new ButtonBuilder()
-        .setCustomId("pg:last")
-        .setLabel(NAV_BUTTONS.last.label)
-        .setStyle(NAV_BUTTONS.last.style)
-        .setDisabled(i === total - 1)
+      new ButtonBuilder().setCustomId("pg:first").setLabel(NAV_BUTTONS.first.label).setStyle(NAV_BUTTONS.first.style).setDisabled(i === 0),
+      new ButtonBuilder().setCustomId("pg:prev").setLabel(NAV_BUTTONS.prev.label).setStyle(NAV_BUTTONS.prev.style).setDisabled(i === 0),
+      new ButtonBuilder().setCustomId("pg:pages").setLabel(`${i + 1}/${total}`).setStyle(NAV_BUTTONS.pages.style).setDisabled(true),
+      new ButtonBuilder().setCustomId("pg:next").setLabel(NAV_BUTTONS.next.label).setStyle(NAV_BUTTONS.next.style).setDisabled(i === total - 1),
+      new ButtonBuilder().setCustomId("pg:last").setLabel(NAV_BUTTONS.last.label).setStyle(NAV_BUTTONS.last.style).setDisabled(i === total - 1)
     );
     return row;
   }
 
-  // Build the response payload for the current page.
+  _buildDisabledNavRow(navJson) {
+    const disabledBtns = (navJson.components || []).map((b) => {
+      const base = {
+        type: 2,
+        style: b.style,
+        label: b.label,
+        custom_id: b.custom_id || b.customId,
+        disabled: true,
+      };
+      if (b.emoji) base.emoji = b.emoji;
+      return base;
+    });
+    return { type: 1, components: disabledBtns };
+  }
+
   _buildPayload() {
-    const navRow = this._buildNavRow();
     if (this.mode === "embed") {
       const page = this.pages[this.currentPage];
-      return { embeds: [page], components: [navRow] };
-    } else {
-      // Components V2 mode: page is an array of component builders.
-      const pageComponents = this.pages[this.currentPage] || [];
-      const extra = this.onPage ? this.onPage(this.currentPage) : [];
+      return { embeds: [page], components: [this._buildNavRow()] };
+    }
+
+    const page = this.pages[this.currentPage];
+    const extra = this.onPage ? this.onPage(this.currentPage) : [];
+
+    if (this._isContainerPage(page)) {
       return {
-        components: [...pageComponents, ...extra, navRow],
+        components: [page],
         flags: MessageFlags.IsComponentsV2,
       };
     }
+
+    const pageComponents = page || [];
+    return {
+      components: [...pageComponents, ...extra, this._buildNavRow()],
+      flags: MessageFlags.IsComponentsV2,
+    };
   }
 
-  // Send the initial reply.
   async send(interaction) {
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply(this._buildPayload());
@@ -131,13 +120,11 @@ class Paginator {
     return message;
   }
 
-  // Update the message to a new page.
   async _update(interaction, newIndex) {
     this.currentPage = Math.max(0, Math.min(this.pages.length - 1, newIndex));
     await interaction.update(this._buildPayload());
   }
 
-  // Attach the button collector.
   _attachCollector(interaction, message) {
     this._collector = message.createMessageComponentCollector({
       componentType: ComponentType.Button,
@@ -145,7 +132,6 @@ class Paginator {
     });
 
     this._collector.on("collect", async (i) => {
-      // Only the original user can navigate.
       if (this.userId && i.user.id !== this.userId) {
         await i.reply({
           content: "Not your paginator, fr. Run the command yourself.",
@@ -163,14 +149,31 @@ class Paginator {
     });
 
     this._collector.on("end", async () => {
-      // Disable all nav buttons when the collector expires.
       try {
-        if (this.mode === 'components') {
+        if (this.mode === 'components' && this._isContainerPage(this.pages[this.currentPage])) {
+          const page = this.pages[this.currentPage];
           const nav = this._buildNavRow();
           const navJson = typeof nav.toJSON === 'function' ? nav.toJSON() : nav;
-          const disabledBtns = (navJson.components || []).map((b) => new V2ButtonBuilder().setCustomId(b.custom_id || b.customId || b.custom_id).setLabel(b.label).setStyle(b.style).setDisabled(true));
-          const disabledRow = new V2ActionRowBuilder().setComponents(disabledBtns);
-          const payload = { components: [...(this.pages[this.currentPage] || []), disabledRow], flags: MessageFlags.IsComponentsV2 };
+          const disabledNav = this._buildDisabledNavRow(navJson);
+          const json = page.toJSON();
+          const components = [...(json.components || [])];
+          const navIdx = components.findIndex(c => c.type === 1);
+          if (navIdx >= 0) {
+            components[navIdx] = disabledNav;
+          } else {
+            components.push(disabledNav);
+          }
+          const container = new ContainerBuilder()
+            .setColor(json.accent_color ?? 0x000000)
+            .setSpoiler(json.spoiler || false)
+            .setComponents(components);
+          await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+        } else if (this.mode === 'components') {
+          const row = new ActionRowBuilder();
+          for (const b of this._buildNavRow().components) {
+            row.addComponents(ButtonBuilder.from(b).setDisabled(true));
+          }
+          const payload = { components: [...(this.pages[this.currentPage] || []), row], flags: MessageFlags.IsComponentsV2 };
           await interaction.editReply(payload);
         } else {
           const row = new ActionRowBuilder();
@@ -186,7 +189,6 @@ class Paginator {
     });
   }
 
-  // Stop the collector early (e.g., if the user runs the command again).
   stop() {
     if (this._collector) this._collector.stop();
   }

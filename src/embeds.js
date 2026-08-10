@@ -26,19 +26,14 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-
-
-
-
-
-
+  SeparatorSpacingSize,
 } = require('discord.js');
 const { execFile: _execFile } = require('child_process');
 const emojis = require('./emojis');
 const { Paginator: _Paginator } = require('./paginator');
 const helpers = require('./helpers');
 // V2 action/button builders for optional Components V2 payloads
-const { V2ActionRowBuilder, V2ButtonBuilder } = require('v2componentsbuilder');
+const { V2ActionRowBuilder, V2ButtonBuilder, V2ContainerBuilder: ContainerBuilder, V2SectionBuilder: SectionBuilder, V2TextDisplayBuilder: TextDisplayBuilder, V2ThumbnailBuilder: ThumbnailBuilder, V2SeparatorBuilder: SeparatorBuilder } = require('v2componentsbuilder');
 
 const { rarityLabel, buildInventoryPages, brainrotSummary } = helpers;
 
@@ -47,14 +42,14 @@ const { rarityLabel, buildInventoryPages, brainrotSummary } = helpers;
 const HELP = {
   info: {
     summary: 'Look up brainrot info — rot, hoverboard, item, or about.',
-    usage: '/info type:<rot|hoverboard|item|spawnlocation|inventory|about> [name:<query>] [user:<id|username>]',
-    examples: ['/info type:rot', '/info type:rot name:Brr Brrr Patapim', '/info type:hoverboard name:UFO', '/info type:item name:Infinity Box', '/info type:inventory user:1559610713', '/info type:about'],
+    usage: '/info type:<rot|hoverboard|item|about> [name:<query>]',
+    examples: ['/info type:rot', '/info type:rot name:Brr Brrr Patapim', '/info type:hoverboard name:UFO', '/info type:item name:Infinity Box', '/info type:about'],
     notes: 'Omitting name returns a random entry for any type. Use autocomplete to find a specific one.',
   },
   inventory: {
-    summary: 'Look up a player live inventory from indieun.com/cab (available via `/info type:inventory`).',
-    usage: '/info type:inventory user:<Roblox UID>',
-    examples: ['/info type:inventory user:1559610713'],
+    summary: 'Look up a player live inventory from indieun.com/cab.',
+    usage: '/inventory user:<Roblox UID>',
+    examples: ['/inventory user:1559610713'],
     notes: 'Accepts either a numeric Roblox user ID or a username. The bot resolves usernames via the Roblox API.',
   },
   trade: {
@@ -123,6 +118,24 @@ const HELP = {
     examples: ['/ping'],
     notes: 'Returns the round-trip latency and Discord API ping.',
   },
+  'game 8ball': {
+    summary: 'Ask the Magic 8-Ball a yes/no question.',
+    usage: '/game 8ball question:<your question>',
+    examples: ['/game 8ball question:Will I catch a legendary brainrot today?'],
+    notes: 'Returns a random mystical answer from the 8-Ball.',
+  },
+  'game blackjack': {
+    summary: 'Play a simplified game of blackjack against the system.',
+    usage: '/game blackjack',
+    examples: ['/game blackjack'],
+    notes: 'Try to get as close to 21 as possible without going over.',
+  },
+  'game dice_roll': {
+    summary: 'Roll one or more dice.',
+    usage: '/game dice_roll [count:<number>]',
+    examples: ['/game dice_roll', '/game dice_roll count:4'],
+    notes: 'Defaults to 1 die. You can roll up to 10 dice at once.',
+  },
 };
 
 function buildHelpOverviewEmbed() {
@@ -132,7 +145,7 @@ function buildHelpOverviewEmbed() {
     .setColor(0x8b5cf6)
     .addFields(
       { name: '/info', value: HELP.info.summary, inline: false },
-      { name: '/info type:inventory', value: HELP.inventory.summary, inline: false },
+      { name: '/inventory', value: HELP.inventory.summary, inline: false },
       { name: '/trade', value: HELP.trade.summary, inline: false },
       { name: '/info type:spawnlocation', value: HELP.spawnlocation.summary, inline: false },
       { name: '/top', value: HELP.top.summary, inline: false },
@@ -142,7 +155,10 @@ function buildHelpOverviewEmbed() {
       { name: '/settings', value: HELP.settings.summary, inline: false },
       { name: '/help', value: HELP.help.summary, inline: false },
       { name: '/ping', value: HELP.ping.summary, inline: false },
-      { name: '/admin forcespawn', value: HELP.forcespawn.summary, inline: false }
+      { name: '/admin forcespawn', value: HELP.forcespawn.summary, inline: false },
+      { name: '/game 8ball', value: HELP['game 8ball'].summary, inline: false },
+      { name: '/game blackjack', value: HELP['game blackjack'].summary, inline: false },
+      { name: '/game dice_roll', value: HELP['game dice_roll'].summary, inline: false }
     )
     .setFooter({ text: 'Use /help command:<name> for detailed help on any command.' })
     .setTimestamp();
@@ -403,9 +419,7 @@ function buildGuessEmbed(round) {
 }
 
 function buildGuessComponents(round, disabled = false, revealedAnswer = null) {
-  const row = new ActionRowBuilder();
-  const v2row = new V2ActionRowBuilder();
-  const v2buttons = [];
+  const components = [];
   for (const opt of round.options) {
     const isAnswer = opt.FullName === round.answer.FullName;
     let style = ButtonStyle.Secondary;
@@ -421,17 +435,30 @@ function buildGuessComponents(round, disabled = false, revealedAnswer = null) {
         style = ButtonStyle.Secondary;
       }
     }
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`guess:${opt.FullName}`)
-        .setLabel(label.slice(0, 80))
-        .setStyle(style)
-        .setDisabled(disabled)
-    );
-    v2buttons.push(new V2ButtonBuilder().setCustomId(`guess:${opt.FullName}`).setLabel(label.slice(0, 80)).setStyle(style).setDisabled(disabled));
+    components.push(new V2ButtonBuilder().setCustomId(`guess:${opt.FullName}`).setLabel(label.slice(0, 80)).setStyle(style).setDisabled(disabled));
   }
-  v2row.setComponents(v2buttons);
-  return { row, v2Row: v2row };
+  const row = new V2ActionRowBuilder().setComponents(components);
+  return row;
+}
+
+function buildGuessContainer(round, disabled = false, revealedAnswer = null) {
+  const section = new SectionBuilder()
+    .setComponents([
+      new TextDisplayBuilder().setContent('Guess the Brainrot'),
+      new TextDisplayBuilder().setContent("Who's this? Click the right button below to score, fr."),
+    ])
+    .setAccessory(new ThumbnailBuilder().setURL(`${ICON_BASE}/${round.answer.Icon}`));
+
+  const separator = new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true);
+
+  const actionRow = buildGuessComponents(round, disabled, revealedAnswer);
+  const actionRowJson = actionRow.toJSON();
+
+  const container = new ContainerBuilder()
+    .setColor(0x8b5cf6)
+    .setComponents([section, separator, actionRowJson]);
+
+  return container;
 }
 
 // ---------- /trade ----------
@@ -512,10 +539,6 @@ function buildStartEmbed(appId) {
       .setURL(APP_DIRECTORY_URL(appId))
   );
 
-  const v2row = new V2ActionRowBuilder().setComponents([
-    new V2ButtonBuilder().setLabel('🚀 Open App Directory').setStyle(ButtonStyle.Link).setCustomId(`appdir:${appId}`),
-  ]);
-
   const embed = new EmbedBuilder()
     .setTitle('🚀 Launch Brainrot Bot Activity')
     .setDescription(
@@ -528,7 +551,7 @@ function buildStartEmbed(appId) {
     .setFooter({ text: 'stay sigma, fr fr' })
     .setTimestamp();
 
-  return { embed, row, v2Row: v2row };
+  return { embed, row };
 }
 
 module.exports = {
@@ -546,6 +569,7 @@ module.exports = {
   buildDailyEmbed,
   buildGuessEmbed,
   buildGuessComponents,
+  buildGuessContainer,
   newGuessRound,
   buildTradeEmbed,
   buildStartEmbed,

@@ -18,15 +18,8 @@ const commands = [
           { name: "hoverboard", value: "hoverboard" },
           { name: "item", value: "item" },
           { name: "spawnlocation", value: "spawnlocation" },
-          { name: "inventory", value: "inventory" },
           { name: "about", value: "about" }
         )
-    )
-    .addStringOption((opt) =>
-      opt
-        .setName("user")
-        .setDescription('Roblox user ID (e.g. "1559610713") or username. Used with type:inventory.')
-        .setRequired(false)
     )
     .addStringOption((opt) =>
       opt
@@ -129,17 +122,15 @@ const commands = [
     ),
 
 
-  // Note: Inventory is now available via `/info type:inventory user:<id|username>`
-
-  // ---------------------------------------------------------------- /inventory (DB-caught rots)
+  // ---------------------------------------------------------------- /inventory
   new SlashCommandBuilder()
     .setName("inventory")
-    .setDescription("Show caught brainrots for a user (server-scoped).")
-    .addUserOption((opt) =>
+    .setDescription("Look up a player's live inventory from indieun.com/cab (by UID or username).")
+    .addStringOption((opt) =>
       opt
-        .setName('user')
-        .setDescription('Discord user to view (omit for yourself).')
-        .setRequired(false)
+        .setName("user")
+        .setDescription('Roblox user ID (e.g. "1559610713") or username.')
+        .setRequired(true)
     ),
 
   // ---------------------------------------------------------------- /ping
@@ -160,15 +151,16 @@ const commands = [
           { name: "info", value: "info" },
           { name: "inventory", value: "inventory" },
           { name: "trade", value: "trade" },
-          { name: "start", value: "start" },
-          { name: "help", value: "help" },
           { name: "spawnlocation", value: "spawnlocation" },
           { name: "top", value: "top" },
           { name: "daily", value: "daily" },
           { name: "guess", value: "guess" },
           { name: "tierlist", value: "tierlist" },
           { name: "settings", value: "settings" },
-          { name: "admin forcespawn", value: "forcespawn" }
+          { name: "admin forcespawn", value: "forcespawn" },
+          { name: "game 8ball", value: "8ball" },
+          { name: "game blackjack", value: "blackjack" },
+          { name: "game dice_roll", value: "dice_roll" }
         )
     ),
 
@@ -265,6 +257,41 @@ const commands = [
       sub
         .setName("forcespawn")
         .setDescription("Force a brainrot to spawn now in this server (Manage Channels required).")
+    ),
+
+  // ---------------------------------------------------------------- /game
+  new SlashCommandBuilder()
+    .setName("game")
+    .setDescription("Mini-games to play in the server.")
+    .addSubcommand((sub) =>
+      sub
+        .setName("8ball")
+        .setDescription("Ask the Magic 8-Ball a question.")
+        .addStringOption((opt) =>
+          opt
+            .setName("question")
+            .setDescription("Your yes/no question.")
+            .setRequired(true)
+            .setMaxLength(200)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("blackjack")
+        .setDescription("Play a simplified game of blackjack against the system.")
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("dice_roll")
+        .setDescription("Roll one or more dice.")
+        .addIntegerOption((opt) =>
+          opt
+            .setName("count")
+            .setDescription("How many dice to roll? Default 1, max 10.")
+            .setRequired(false)
+            .setMinValue(1)
+            .setMaxValue(10)
+        )
     ),
 ].map((cmd) => cmd.toJSON());
 

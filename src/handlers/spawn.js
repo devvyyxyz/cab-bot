@@ -23,7 +23,6 @@ async function handleForceSpawn(interaction, ctx) {
     return;
   }
 
-  // If there's already an active spawn, deny to avoid overlap.
   if (ctx.activeSpawns.has(guildId)) {
     await interaction.reply({
       content: '⏳ A brainrot is already spawned in this server. Wait for it to be caught or expire, fr.',
@@ -32,7 +31,17 @@ async function handleForceSpawn(interaction, ctx) {
     return;
   }
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const lastEnd = ctx.lastSpawnEnd?.get(guildId);
+  if (lastEnd && Date.now() - lastEnd < 60 * 1000) {
+    const remaining = Math.ceil((60 * 1000 - (Date.now() - lastEnd)) / 1000);
+    await interaction.reply({
+      content: `⏳ Spawn cooldown active. Try again in ${remaining}s, fr.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
 
   const guild = interaction.guild;
   if (!guild) {
